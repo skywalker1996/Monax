@@ -43,6 +43,8 @@ class Client(object):
 		self.receiver_id = receiver_id
 
 		self.cc = self.config.get("experiment", "CC")
+
+
 		
 		if(self.multi_flow):
 			self.multiflow_config = Config(multiflow_cfg)
@@ -56,8 +58,12 @@ class Client(object):
 				self.protocal = PROTOCOL_TCP
 				print("********** TCP flow")
 		else:
+			
+			
 			self.ip = self.config.get("client", "ip")
 			self.port = int(self.config.get("client", "port"))
+			if(self.config.get("experiment", "env") == ENV_CLOUD):
+				self.ip = "127.0.0.1"
 			self.protocal = PROTOCOL_MAP[self.cc]
 
 		self.recv_buffer = Queue(self.recv_buf_size)
