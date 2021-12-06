@@ -1,0 +1,1 @@
+mm-delay 10 mm-link /home/zhijian/workspace_fast/Monax/traces/mahimahi/trace/subset/report_bus_0001.log /home/zhijian/workspace_fast/Monax/traces/mahimahi/trace/subset/report_bus_0001.log --uplink-queue=droptail --uplink-queue-args=packets=2048 --sh -c 'python monax_server.py --id 0'

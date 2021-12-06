@@ -1,0 +1,8 @@
+influxdb_client
+pillow
+sklearn
+torch
+matplotlib
+pandas
+gym
+torchvision

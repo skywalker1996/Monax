@@ -1,0 +1,21 @@
+/home/zhijian/workspace_fast/Monax_m
+Traceback (most recent call last):
+  File "monax_server.py", line 489, in <module>
+    server = Server(global_cfg = 'global.conf', multiflow_cfg = 'multi-flow.conf', sender_id=args.id)
+  File "monax_server.py", line 170, in __init__
+    self.server_sock.connect((self.client_ip, self.client_port))
+OSError: [Errno 101] Network is unreachable
+/home/zhijian/workspace_fast/Monax_m
+Traceback (most recent call last):
+  File "monax_server.py", line 489, in <module>
+    server = Server(global_cfg = 'global.conf', multiflow_cfg = 'multi-flow.conf', sender_id=args.id)
+  File "monax_server.py", line 170, in __init__
+    self.server_sock.connect((self.client_ip, self.client_port))
+OSError: [Errno 101] Network is unreachable
+/home/zhijian/workspace_fast/Monax_m
+Traceback (most recent call last):
+  File "monax_server.py", line 489, in <module>
+    server = Server(global_cfg = 'global.conf', multiflow_cfg = 'multi-flow.conf', sender_id=args.id)
+  File "monax_server.py", line 170, in __init__
+    self.server_sock.connect((self.client_ip, self.client_port))
+OSError: [Errno 101] Network is unreachable

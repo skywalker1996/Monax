@@ -1,0 +1,1 @@
+sudo mn --custom ./topo1.py --topo mytopo --test pingall
