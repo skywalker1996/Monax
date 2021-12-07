@@ -4,9 +4,9 @@ import json
 
 recv_proxy = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
 recv_proxy.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-# recv_proxy.bind(("172.26.254.98", 10000))
+recv_proxy.bind(("172.26.254.98", 10000))
 # recv_proxy.bind(("127.0.0.1", 10000))
-recv_proxy.bind(('100.64.0.2', 10000))
+# recv_proxy.bind(('100.64.0.2', 10000))
 start_time = time.time()
 recv_count = 0
 

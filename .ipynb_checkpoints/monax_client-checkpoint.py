@@ -1,3 +1,4 @@
+from configs.Common import PROTOCOL_TCP, PROTOCOL_UDP
 import matplotlib 
 matplotlib.use('Agg') 
 from configs.config import Config
@@ -13,7 +14,7 @@ import selectors
 import logging
 import sys
 import argparse
-
+from configs.Common import *
 from utils.helpers import (
     curr_ts_ms, apply_op, get_open_udp_port,
     READ_FLAGS, WRITE_FLAGS, ALL_FLAGS)
@@ -40,6 +41,10 @@ class Client(object):
 		self.multi_flow = True if int(self.config.get("TC", "Multiflow"))==1 else False
 		
 		self.receiver_id = receiver_id
+
+		self.cc = self.config.get("experiment", "CC")
+
+
 		
 		if(self.multi_flow):
 			self.multiflow_config = Config(multiflow_cfg)
@@ -47,15 +52,15 @@ class Client(object):
 			self.port = int(self.multiflow_config.get("client-"+str(self.receiver_id), "port"))
 			
 			if(receiver_id==0):
-				self.protocal = 'UDP'
+				self.protocal = PROTOCOL_UDP
 				print("********** Monax primary flow")
 			else:
-				self.protocal = 'TCP'
+				self.protocal = PROTOCOL_TCP
 				print("********** TCP flow")
 		else:
-			self.ip = self.config.get("client", "ip")
+			self.ip = self.config.get("client", "local_ip")
 			self.port = int(self.config.get("client", "port"))
-			self.protocal = self.config.get("TC", "protocal")
+			self.protocal = PROTOCOL_MAP[self.cc]
 
 		self.recv_buffer = Queue(self.recv_buf_size)
 		self.send_buffer= Queue(self.send_buf_size)
@@ -66,20 +71,23 @@ class Client(object):
 
 		# every ack period' data is a batch
 		self.last_batch = 0
-		self.upload_record = True
-		self.video_streaming = True if int(self.config.get("experiment", "VIDEO_STREAMING"))==1 else False
 		
-		db_para = {}
-		db_para['url'] = self.config.get('database', 'url')
-		db_para['token'] = self.config.get('database', 'token')
-		db_para['org'] = self.config.get('database', 'org')
-		db_para['bucket'] = self.config.get('database', 'bucket')
-
-		self.Monitor = MonitorFlux(db_para=db_para, 
-								   plot_number=5, 
-								   monitor_targets=None)
-
+		self.stream_type = self.config.get("experiment", "STREAM_TYPE")
 		
+
+		self.record_type = self.config.get("experiment", "RECORD_TYPE")
+		
+		if(self.record_type == RECORD_TYPE_DATABASE):
+			db_para = {}
+			db_para['url'] = self.config.get('database', 'url')
+			db_para['token'] = self.config.get('database', 'token')
+			db_para['org'] = self.config.get('database', 'org')
+			db_para['bucket'] = self.config.get('database', 'bucket')
+
+			if(self.record_type == RECORD_TYPE_DATABASE):
+				self.Monitor = MonitorFlux(db_para=db_para, 
+										plot_number=5, 
+										monitor_targets=None)
 
 		self.router = {}
 		
@@ -92,11 +100,11 @@ class Client(object):
 		self.send_ffplay_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
 		### recv socket
-		if(self.protocal=='UDP'):
+		if(self.protocal==PROTOCOL_UDP):
 			self.client_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 			self.client_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 			self.client_sock.bind((self.ip, self.port))
-		elif(self.protocal=='TCP'):
+		elif(self.protocal==PROTOCOL_TCP):
 			sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 			sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 			sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, True)
@@ -126,7 +134,7 @@ class Client(object):
 
 
 # 	def sendAgent(self):
-# 		if(self.protocal=='UDP'):
+# 		if(self.protocal==PROTOCOL_UDP):
 # 			while(True):
 # 				data = self.send_buffer.get()
 # 				self.client_sock.sendto(data, self.router['back'])
@@ -135,7 +143,7 @@ class Client(object):
 # #                 print('send ack back!!!')
 # #                 self.send_back_sock.sendto(data,(self.server_ip, self.server_port)
 
-# 		elif(self.protocal=='TCP'):
+# 		elif(self.protocal==PROTOCOL_TCP):
 # # 			while(self.send_buffer.qsize()==0):
 # # 				continue
 # # 			sock.connect((self.server_ip, self.server_port))
@@ -149,12 +157,12 @@ class Client(object):
 		logging.debug('start recieving data!')
 
 		recv_size = 0
-		if(self.protocal=='UDP'):
+		if(self.protocal==PROTOCOL_UDP):
 			data,address = self.client_sock.recvfrom(2000)
 			if('back' not in self.router):
 				self.router['back'] = address
 # 				print('send ack to address: ',address)
-		elif(self.protocal=='TCP'):
+		elif(self.protocal==PROTOCOL_TCP):
 			data,address = self.client_sock.recvfrom(2000)
 		
 		self.socket_read_buffer+=data
@@ -163,7 +171,7 @@ class Client(object):
 		
 		
 # 		data = sock.recv(2000)
-		if(self.video_streaming):
+		if(self.stream_type==STREAM_TYPE_VIDEO):
 			dataFrame = self.Unpack_VideoPacket(packet)
 		else:
 			dataFrame = self.Unpack_DataFrame(packet)
@@ -182,10 +190,10 @@ class Client(object):
 
 		while(self.running):
 			try:
-				if(self.protocal=='UDP'):
+				if(self.protocal==PROTOCOL_UDP):
 					data = self.client_sock.recv(5000)
 	# 				print(len(data))
-				elif(self.protocal=='TCP'):
+				elif(self.protocal==PROTOCOL_TCP):
 					data = self.client_sock.recv(5000)
 	# 				print(len(data))
 			except:
@@ -200,7 +208,7 @@ class Client(object):
 # 			packets = [data]
 			sss_time = time.time()
 			for packet in packets: 
-				if(self.video_streaming):
+				if(self.stream_type==STREAM_TYPE_VIDEO):
 					dataFrame = self.Unpack_VideoPacket(packet)
 	# 				self.send_ffplay_sock.sendto(dataFrame['data'], ("192.168.0.107", 8878))
 				else:
@@ -233,10 +241,10 @@ class Client(object):
 	# 				self.send_buffer.put(ack)
 # 					print('send ack!!!')
 
-					if(self.protocal=='UDP'):
+					if(self.protocal==PROTOCOL_UDP):
 						self.client_sock.sendto(ack, self.router['back'])
 	# 					print('send ack!!!')
-					elif(self.protocal=='TCP'):
+					elif(self.protocal==PROTOCOL_TCP):
 						self.client_sock.send(ack)
 
 # 					print(f"return ack with pkt id = {dataFrame['pkt_id']} and timestamp = {time.time()%1000}")
@@ -245,7 +253,7 @@ class Client(object):
 					self.current_window = int(dataFrame['pkt_id']/self.ack_period)
 	# 				print(f'#190 self.current_window = {self.current_window}')
 					pkt_log[self.current_window] = 1 
-					if(self.upload_record):
+					if(self.record_type == RECORD_TYPE_DATABASE):
 						record = self.construct_data(estimated_bw,self.one_way_delay)
 						self.Monitor.pushData(measurement = 'monax-client-'+str(self.receiver_id), datapoints = [record], tags = {'version': 0.1} )
 				else:
@@ -266,7 +274,7 @@ class Client(object):
 					estimated_bw = (recv_size*8)/10**6  #Mbps
 					recv_size = 0
 					start_time = time.time()
-					logging.debug("Estimated throughput = {}".format(estimated_bw))
+					# logging.debug("Estimated throughput = {}".format(estimated_bw))
 	# 				if DEBUG:
 	# 					self.Log_send("Estimated throughput = {}".format(estimated_bw)) 
 				else:
@@ -395,6 +403,8 @@ if __name__ == '__main__':
 
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--id', type=int, default=1)
+	parser.add_argument('--time_mark', default="default")
+	parser.add_argument('--epoch', type=int, default=0)
 	args = parser.parse_args()
 	
 	client = Client(global_cfg = 'global.conf', multiflow_cfg = 'multi-flow.conf', receiver_id=args.id)
