@@ -1,4 +1,5 @@
-import matplotlib 
+import matplotlib
+from torch._C import _create_function_from_trace 
 matplotlib.use('Agg') 
 from configs.config import Config
 import json
@@ -20,8 +21,8 @@ import argparse
 import logging
 from lib.rate_control.rate_control_PCC import rate_control_module_PCC
 from lib.rate_control.rate_control_RL import rate_control_module_RL
-from lib.rate_control.rate_control_FTRL import rate_control_module_FTRL
-from lib.rate_control.test_indigo import Test
+from lib.rate_control.rate_control_Monax import rate_control_module_Monax
+# from lib.rate_control.test_indigo import Test
 from subprocess import Popen
 
 from lib.H264_Stream import H264_Stream
@@ -31,17 +32,25 @@ from utils.helpers import (
 	curr_ts_ms, apply_op, get_open_udp_port,
 	READ_FLAGS, WRITE_FLAGS, ALL_FLAGS)
 
+from configs.Common import *
+import pandas as pd
+
 LOG_FORMAT = "%(asctime)s - %(levelname)s - %(message)s"
 DATE_FORMAT = "%m/%d/%Y %H:%M:%S %p"
+
+DATA_LOAD = ('1'*1280).encode()
+
+
+if not os.path.exists('./logs'):
+	os.mkdir('./logs')
+if not os.path.exists('./record'):
+	os.mkdir('./record')
+
 logging.basicConfig(filename='./logs/server.log', level=logging.DEBUG, format=LOG_FORMAT, datefmt=DATE_FORMAT, filemode='w')
 
 
-ALGORITHM_CHANNEL = 'FTRL'   
-START_CODE = '{st}'
-LEN_START_CODE = len(START_CODE)
-
 class Server(object): 
-	def __init__(self, global_cfg, multiflow_cfg, sender_id, time_range):
+	def __init__(self, global_cfg, multiflow_cfg, sender_id, time_range, time_mark, epoch):
 
 		logging.debug("init start")
 		self.config = Config(global_cfg)
@@ -49,7 +58,7 @@ class Server(object):
 		self.send_buf_size = int(self.config.get("server", "send_buf_size"))
 		self.ip = self.config.get("server", "ip")
 
-		self.video_streaming = True if int(self.config.get("experiment", "VIDEO_STREAMING"))==1 else False
+		self.stream_type = self.config.get("experiment", "STREAM_TYPE")
 		self.video_path = self.config.get("experiment", "VIDEO")
 		
 		self.multi_flow = True if int(self.config.get("TC", "Multiflow"))==1 else False
@@ -57,11 +66,20 @@ class Server(object):
 		self.recv_buffer = Queue(self.recv_buf_size)
 		self.send_buffer= Queue(self.send_buf_size)
 
+		self.cc = self.config.get("experiment", "CC")
+
+		self.env = self.config.get("experiment", "ENV")
+
+		### time mark for record file directory
+		self.time_mark = time_mark
+		self.epoch = epoch
+
 		### sending parameters
 		self.cwnd = 100
 		self.using_rate_control = True
 		self.next_ack = 0
 		
+		### Multiflow Setting
 		self.sender_id = sender_id
 
 		if(self.multi_flow):
@@ -72,22 +90,20 @@ class Server(object):
 			self.flow_end_time = int(time_range.split(',')[1]) if time_range.split(',')[1]!='end' else 'end'
 			
 			if(sender_id==0):
-				self.protocal = 'UDP'
+				self.protocal = PROTOCOL_UDP
 				print("********** Monax primary flow")
 			else:
-				self.protocal = 'TCP'
+				self.protocal = PROTOCOL_TCP
 				print("********** TCP flow")
 			
 		else:
 			self.client_ip = self.config.get("client", "ip")
 			self.client_port = int(self.config.get("client", "port"))
-			self.protocal = self.config.get("TC", "protocal")
+			self.protocal = PROTOCOL_MAP[self.cc]
 			
 		
 		self.primary_flow = True if self.sender_id==0 else False
 
-		### upload monitor data to database 
-		self.upload_record = True
 
 		### data info
 		self.pkt_id = 0  # divided into packet batches
@@ -136,45 +152,61 @@ class Server(object):
 
 		self.record_count = 0   # for cold start
 
-		### for sending control
+		### Estimate Setting 
 		self.estimate_start_time = time.time()
 		self.last_send_time = time.time()
+		self.estimate_interval = 1
 		self.send_count = 0
 
-		if(ALGORITHM_CHANNEL == 'PCC'):
+		self.record_start_time = time.time()
+		self.record_save_interval = 0.2
+
+
+		if(self.cc == CC_PCC):
 			self.RC_Module = rate_control_module_PCC(self.sending_rate)
-		elif(ALGORITHM_CHANNEL == 'FTRL'):
-			self.RC_Module = rate_control_module_FTRL(5, 0.2, 1, 0.2, 0.2,self.cwnd)
-		elif(ALGORITHM_CHANNEL == 'RL'):
+		elif(self.cc == CC_MONAX):
+			self.RC_Module = rate_control_module_Monax(5, 0.2, 1, 0.2, 0.2,self.cwnd)
+		elif(self.cc == CC_RL):
 			self.RC_Module = rate_control_module_RL(self.sending_rate)
-		elif(ALGORITHM_CHANNEL=='INDIGO'):
-			self.RC_Module = Test("lib/rate_control/model/model")
+		# elif(self.cc == CC_INDIGO):
+		# 	self.RC_Module = Test("lib/rate_control/model/model")
 
-		db_para = {}
-		db_para['url'] = self.config.get('database', 'url')
-		db_para['token'] = self.config.get('database', 'token')
-		db_para['org'] = self.config.get('database', 'org')
-		db_para['bucket'] = self.config.get('database', 'bucket')
 
-		self.Monitor = MonitorFlux(db_para=db_para, 
-								   plot_number=5, 
-								   monitor_targets=None)
+		### Record Setting 
+		self.record_type = self.config.get("experiment", "RECORD_TYPE")
 
+		if(self.record_type == RECORD_TYPE_DATABASE):		
+			db_para = {}
+			db_para['url'] = self.config.get('database', 'url')
+			db_para['token'] = self.config.get('database', 'token')
+			db_para['org'] = self.config.get('database', 'org')
+			db_para['bucket'] = self.config.get('database', 'bucket')
+			self.Monitor = MonitorFlux(db_para=db_para, plot_number=5, monitor_targets=None)
+
+		elif(self.record_type == RECORD_TYPE_CSV):
+			self.records = {}
+			self.records["time"] = []
+			self.records["rtt"] = []
+			self.records["queue_delay"] = []
+			self.records["packet_loss"] = []
+			self.records["server_sending_rate"]	= []
+			self.records["delivery_rate"] = []
+			
 		# print('connecting database successfully!')
 		
 
 		self.poller = selectors.DefaultSelector()
 # 		time.sleep(1)
 # 		avail_port = self.handshake()
-		### send socket
-		if(self.protocal=='UDP'):
+		### send socke	t
+		if(self.protocal==PROTOCOL_UDP):
 			self.server_sock = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
 			self.server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 			self.server_sock.connect((self.client_ip, self.client_port))
 # 			self.server_sock.setblocking(False)
 			logging.debug('connect client addr: {}, {}'.format(self.client_ip, self.client_port))
 
-		elif(self.protocal=='TCP'):
+		elif(self.protocal==PROTOCOL_TCP):
 # 			TCP_CONGESTION = getattr(socket, 'TCP_CONGESTION', 13)
 			self.server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 			self.server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -187,25 +219,13 @@ class Server(object):
 		self.running = True
 		logging.debug("init successfully")
 
-	def handshake(self):
-
-		logging.debug("handshake start")
-		"""Handshake with peer receiver. Must be called before run()."""
-		sock = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
-		sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)	
-		sock.sendto("request port".encode(), (self.middleware_ip, self.middleware_port))
-		msg = sock.recv(100)
-		avail_port = json.loads(msg.decode())['port']
-		logging.debug("handshake finish")
-		return avail_port
-
 
 	def start(self):
 
 		self.mainThread = Thread(target=self.run, args=())
 		self.mainThread.daemon = True
 
-		if(self.video_streaming):
+		if(self.stream_type==STREAM_TYPE_VIDEO):
 			self.Encoder_thread = Process(target=self.Encoder, args=(self.send_buffer,self.video_path))
 			self.Encoder_thread.daemon = True 
 			self.Encoder_thread.start() 
@@ -213,7 +233,7 @@ class Server(object):
 		self.mainThread.start()
 
 		self.mainThread.join()
-		if(self.video_streaming):
+		if(self.stream_type==STREAM_TYPE_VIDEO):
 			self.Encoder_thread.join()
 		sys.exit(0)
 
@@ -263,7 +283,7 @@ class Server(object):
 
 		log_info = {}
 		if(self.using_rate_control):
-			if(self.protocal=='UDP'):
+			if(self.protocal==PROTOCOL_UDP):
 				### cold start
 				if(self.record_count>11):
 					state = {'network_delay': self.network_delay_record[-10:],
@@ -272,13 +292,13 @@ class Server(object):
 							  'throughput_error': self.throughput_error, 
 							  'queue_length': self.send_buffer.qsize(),
 							  'cwnd': self.cwnd}
-					if(ALGORITHM_CHANNEL=='PCC'):
+					if(self.cc==CC_PCC):
 						self.sending_rate, utility = self.RC_Module.action(state)
 
-					elif(ALGORITHM_CHANNEL=='FTRL'):
+					elif(self.cc==CC_MONAX):
 						self.cwnd, utility, log_info=self.RC_Module.action(state)
 						utility = 1.0
-					elif(ALGORITHM_CHANNEL=='INDIGO'):
+					elif(self.cc==CC_INDIGO):
 						state = [self.rtt_ewma,
 							self.delivery_rate_ewma, #self.delivery_rate_ewma
 							self.sending_rate_ewma, #self.send_rate_ewma
@@ -289,13 +309,23 @@ class Server(object):
 	# 					print('####### cwnd: ', self.cwnd)
 	# 					print('sending buffer size: ', self.send_buffer.qsize())
 
-		if(self.upload_record and self.current_rtt>=0):
-			if(pkt_id%50==0):
+		current_time = time.time()
+		if(current_time - self.record_start_time >= self.record_save_interval):
+			if(self.record_type == RECORD_TYPE_DATABASE):
 # 				print(f"upload data: RTT :{self.rtt_ewma}  loss: {self.current_loss}")
-				record = self.construct_data(self.rtt_ewma, self.current_queue_delay, self.current_loss, self.sending_rate, data['recv_throughput'], utility, self.cwnd, self.bw_limit, log_info)
+				record = self.construct_data(self.current_rtt, self.current_queue_delay, self.current_loss, self.sending_rate, data['recv_throughput'], utility, self.cwnd, self.bw_limit, log_info)
 				self.Monitor.pushData(measurement = 'monax-server-'+str(self.sender_id), datapoints = [record], tags = {'version': 0.1} )
-		else:
-			logging.debug("cannot upload data because RTT = ", self.current_rtt)
+			elif(self.record_type == RECORD_TYPE_CSV):
+				self.records["time"].append(int(time.time()))
+				self.records["rtt"].append(self.current_rtt)
+				self.records["queue_delay"].append(self.current_queue_delay)
+				self.records["packet_loss"].append(self.current_loss)
+				self.records["server_sending_rate"].append(self.sending_rate)
+				self.records["delivery_rate"].append(data['recv_throughput'])
+
+			self.record_start_time = time.time()
+
+			# logging.debug("cannot upload data because RTT = ", self.current_rtt)
 
 
 	def send(self, sock):
@@ -303,8 +333,8 @@ class Server(object):
 		data = None
 # 		if(self.current_send_time-self.last_send_time>=self.sending_interval):
 		
-		if(self.check_flow() and (self.protocal=='TCP' or self.window_is_open())):
-			if(self.video_streaming):
+		if(self.check_flow() and (self.protocal==PROTOCOL_TCP or self.window_is_open())):
+			if(self.stream_type==STREAM_TYPE_VIDEO):
 				try:
 					(data, self.frame_id, priority, put_time) = self.send_buffer.get_nowait()
 				except:
@@ -323,15 +353,15 @@ class Server(object):
 			# print('send data index', send_index)
 		self.current_send_time = time.time()
 		current_time = time.time()
-		if(current_time - self.estimate_start_time >= 1):
-			self.sending_rate = (self.send_count*8)/10**6 
+		if(current_time - self.estimate_start_time >= self.estimate_interval):
+			self.sending_rate = (self.send_count*8)/(self.estimate_interval*(10**6))
 			self.estimate_start_time = time.time()
 			self.send_count = 0
 # 				if(DEBUG):
 # 					self.Log_send('server send throughput = {}'.format(self.sending_rate))
-			logging.debug('******server send throughput = {}'.format(self.sending_rate))
-			if(self.primary_flow):
-				print('******server send throughput = {}'.format(self.sending_rate))
+			# logging.debug('******server send throughput = {}'.format(self.sending_rate))
+			# if(self.primary_flow):
+			# 	print('******server send throughput = {}'.format(self.sending_rate))
 			self.bw_limit = self.getNextBandwidth()
 		else:
 			if(data is not None):
@@ -350,6 +380,19 @@ class Server(object):
 				if(flag&WRITE_FLAGS):
 # 					print("send func")
 					self.send(fd.fileobj) 
+		self.save_records()
+
+	def save_records(self):
+		
+		save_dir = f"./record/{self.env}/{self.time_mark}"
+		if(not os.path.exists(save_dir)):
+			os.mkdir(save_dir)
+		record_file = f"server_{self.cc}_epoch_{self.epoch}.csv"
+		dataframe = pd.DataFrame.from_dict(self.records)
+		dataframe.to_csv(os.path.join(save_dir, record_file))
+		print("************* save records in file: ", os.path.join(save_dir, record_file))
+		time.sleep(10)
+
 
 	def Encoder(self, send_buffer, video_path):
 		H264_stream=H264_Stream(video_path=video_path)
@@ -419,7 +462,7 @@ class Server(object):
 		dataFrame += slice_id.to_bytes(4, byteorder="big")
 		dataFrame += int((time.time()%(10**6))*1000).to_bytes(4, byteorder="big")
 # 		print('sending timestamp = ', int((time.time()%(10**6))*1000))
-		dataFrame += ('1'*1280).encode()
+		dataFrame += DATA_LOAD
 # 		print('pack pkt_id = {}'.format(self.pkt_id))
 
 		return dataFrame
@@ -459,10 +502,10 @@ class Server(object):
 		return ackFrame
 
 
-	def construct_data(self,network_delay, queue_delay, packet_loss, send_rate, delivery_rate, utility, cwnd, bw_limit, log_info):
+	def construct_data(self, rtt, queue_delay, packet_loss, send_rate, delivery_rate, utility, cwnd, bw_limit, log_info):
 
 		record = {}
-		record['network_delay'] = float(network_delay)
+		record['rtt'] = float(rtt)
 		record['queue_delay'] = float(queue_delay)
 		record['packet_loss'] = float(packet_loss)
 		record['server_sending_rate'] = float(send_rate)
@@ -479,6 +522,10 @@ class Server(object):
 	def getNextBandwidth(self):
 		
 # 		print('********** trace = ', self.trace)
+		progress = round((self.trace_point/len(self.trace))*100, 1)
+		print("\r", end="")
+		print("epoch progress: {}% ".format(progress), end="")
+		sys.stdout.flush()
 		if(self.trace_point>=len(self.trace)):
 			if(self.trace_count>=(self.exp_round-1)):
 				logging.debug("finish trace")
@@ -508,9 +555,13 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--id', type=int, default=0)
 	parser.add_argument('--time_range',default='0,end')
+	parser.add_argument('--time_mark', default="default")
+	parser.add_argument('--epoch', type=int, default=0)
 	args = parser.parse_args()
 
-	server = Server(global_cfg = 'global.conf', multiflow_cfg = 'multi-flow.conf', sender_id=args.id, time_range=args.time_range)
+	server = Server(global_cfg = 'global.conf', multiflow_cfg = 'multi-flow.conf', 
+					sender_id=args.id, time_range=args.time_range, time_mark=args.time_mark, 
+					epoch=args.epoch)
 	server.start()
 	print("server exit!!!")
 

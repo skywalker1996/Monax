@@ -78,7 +78,7 @@ def experiment(epoch):
 
 	elif(RECORD_TYPE == RECORD_TYPE_CSV):
 
-		save_dir = f"./record/{TIME_MARK}"
+		save_dir = f"./record/{ENV}/{TIME_MARK}"
 	
 		record_file = f"server_{CC}_epoch_{epoch}.csv"
 		file_path = os.path.join(save_dir, record_file)
@@ -103,8 +103,12 @@ if __name__ == '__main__':
 							  'send_rate_average':[r['send_rate_average'] for r in results], 
 							  'delivery_rate_average':[r['delivery_rate_average'] for r in results]})
 
-	file_path = f"./results/{STREAM_TYPE}/{CC}_{TIME_MARK}_{ENV}.csv"
-	dataframe.to_csv(file_path, sep=',', mode='w+')
+	file_dir = f"./results/{ENV}/{STREAM_TYPE}"
+
+	if(not os.path.exists(file_dir)):
+		os.makedirs(file_dir)
+	file_name = f"{CC}_{TIME_MARK}.csv"
+	dataframe.to_csv(os.path.join(file_dir, file_name), sep=',', mode='w+')
 	print("========= Experiment finish ==========")
 
 # 	print('============ Results ============')

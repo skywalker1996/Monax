@@ -68,6 +68,8 @@ class Server(object):
 
 		self.cc = self.config.get("experiment", "CC")
 
+		self.env = self.config.get("experiment", "ENV")
+
 		### time mark for record file directory
 		self.time_mark = time_mark
 		self.epoch = epoch
@@ -382,9 +384,9 @@ class Server(object):
 
 	def save_records(self):
 		
-		save_dir = f"./record/{self.time_mark}"
+		save_dir = f"./record/{self.env}/{self.time_mark}"
 		if(not os.path.exists(save_dir)):
-			os.mkdir(save_dir)
+			os.makedirs(save_dir)
 		record_file = f"server_{self.cc}_epoch_{self.epoch}.csv"
 		dataframe = pd.DataFrame.from_dict(self.records)
 		dataframe.to_csv(os.path.join(save_dir, record_file))
