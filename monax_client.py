@@ -13,6 +13,7 @@ import ipaddress
 import selectors
 import logging
 import sys
+import os
 import argparse
 from configs.Common import *
 from utils.helpers import (
@@ -21,6 +22,9 @@ from utils.helpers import (
 
 LOG_FORMAT = "%(asctime)s - %(levelname)s - %(message)s"
 DATE_FORMAT = "%m/%d/%Y %H:%M:%S %p"
+
+if not os.path.exists('./logs'):
+	os.mkdir('./logs')
 logging.basicConfig(filename='./logs/client.log', level=logging.DEBUG, format=LOG_FORMAT, datefmt=DATE_FORMAT, filemode='w')
 	
 	

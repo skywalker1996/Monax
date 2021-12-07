@@ -40,6 +40,9 @@ DATE_FORMAT = "%m/%d/%Y %H:%M:%S %p"
 
 DATA_LOAD = ('1'*1280).encode()
 
+
+if not os.path.exists('./logs'):
+	os.mkdir('./logs')
 logging.basicConfig(filename='./logs/server.log', level=logging.DEBUG, format=LOG_FORMAT, datefmt=DATE_FORMAT, filemode='w')
 
 
