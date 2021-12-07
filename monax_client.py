@@ -25,6 +25,9 @@ DATE_FORMAT = "%m/%d/%Y %H:%M:%S %p"
 
 if not os.path.exists('./logs'):
 	os.mkdir('./logs')
+if not os.path.exists('./record'):
+	os.mkdir('./record')
+	
 logging.basicConfig(filename='./logs/client.log', level=logging.DEBUG, format=LOG_FORMAT, datefmt=DATE_FORMAT, filemode='w')
 	
 	
