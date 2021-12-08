@@ -25,8 +25,6 @@ TRACE_PORTION = float(configs.get("experiment", "TRACE_PORTION"))
 VIDEO_PATH = configs.get("experiment", "VIDEO")
 BASE_DELAY = configs.get("experiment", "BASE_DELAY")
 
-ENV = configs.get("experiment", "ENV")
-
 
 STREAM_TYPE = configs.get("experiment", "STREAM_TYPE")
 CC = configs.get("experiment", "CC")
@@ -145,7 +143,7 @@ def experiment(epoch):
 
 	elif(RECORD_TYPE == RECORD_TYPE_CSV):
 
-		save_dir = f"./record/{ENV}/{TIME_MARK}"
+		save_dir = f"./record/{TIME_MARK}"
 	
 		record_file = f"server_{CC}_epoch_{epoch}.csv"
 		file_path = os.path.join(save_dir, record_file)
@@ -173,13 +171,8 @@ if __name__ == '__main__':
 							  'send_rate_average':[r['send_rate_average'] for r in results], 
 							  'delivery_rate_average':[r['delivery_rate_average'] for r in results]})
 
-
-	file_dir = f"./results/{ENV}/{STREAM_TYPE}"
-
-	if(not os.path.exists(file_dir)):
-		os.makedirs(file_dir)
-	file_name = f"{CC}_{TIME_MARK}.csv"
-	dataframe.to_csv(os.path.join(file_dir, file_name), sep=',', mode='w+')
+	file_path = f"./results/{STREAM_TYPE}/{CC}_{TIME_MARK}.csv"
+	dataframe.to_csv(file_path, sep=',', mode='w+')
 	print("========= Experiment finish ==========")
 
 # 	print('============ Results ============')

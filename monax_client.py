@@ -59,15 +59,15 @@ class Client(object):
 			self.port = int(self.multiflow_config.get("client-"+str(self.receiver_id), "port"))
 			
 			if(receiver_id==0):
-				self.protocal = PROTOCOL_UDP
+				self.protocol = PROTOCOL_UDP
 				print("********** Monax primary flow")
 			else:
-				self.protocal = PROTOCOL_TCP
+				self.protocol = PROTOCOL_TCP
 				print("********** TCP flow")
 		else:
 			self.ip = self.config.get("client", "local_ip")
 			self.port = int(self.config.get("client", "port"))
-			self.protocal = PROTOCOL_MAP[self.cc]
+			self.protocol = PROTOCOL_MAP[self.cc]
 
 		self.recv_buffer = Queue(self.recv_buf_size)
 		self.send_buffer= Queue(self.send_buf_size)
@@ -107,11 +107,11 @@ class Client(object):
 		self.send_ffplay_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
 		### recv socket
-		if(self.protocal==PROTOCOL_UDP):
+		if(self.protocol==PROTOCOL_UDP):
 			self.client_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 			self.client_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 			self.client_sock.bind((self.ip, self.port))
-		elif(self.protocal==PROTOCOL_TCP):
+		elif(self.protocol==PROTOCOL_TCP):
 			sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 			sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 			sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, True)
@@ -141,7 +141,7 @@ class Client(object):
 
 
 # 	def sendAgent(self):
-# 		if(self.protocal==PROTOCOL_UDP):
+# 		if(self.protocol==PROTOCOL_UDP):
 # 			while(True):
 # 				data = self.send_buffer.get()
 # 				self.client_sock.sendto(data, self.router['back'])
@@ -150,7 +150,7 @@ class Client(object):
 # #                 print('send ack back!!!')
 # #                 self.send_back_sock.sendto(data,(self.server_ip, self.server_port)
 
-# 		elif(self.protocal==PROTOCOL_TCP):
+# 		elif(self.protocol==PROTOCOL_TCP):
 # # 			while(self.send_buffer.qsize()==0):
 # # 				continue
 # # 			sock.connect((self.server_ip, self.server_port))
@@ -164,12 +164,12 @@ class Client(object):
 		logging.debug('start recieving data!')
 
 		recv_size = 0
-		if(self.protocal==PROTOCOL_UDP):
+		if(self.protocol==PROTOCOL_UDP):
 			data,address = self.client_sock.recvfrom(2000)
 			if('back' not in self.router):
 				self.router['back'] = address
 # 				print('send ack to address: ',address)
-		elif(self.protocal==PROTOCOL_TCP):
+		elif(self.protocol==PROTOCOL_TCP):
 			data,address = self.client_sock.recvfrom(2000)
 		
 		self.socket_read_buffer+=data
@@ -197,10 +197,10 @@ class Client(object):
 
 		while(self.running):
 			try:
-				if(self.protocal==PROTOCOL_UDP):
+				if(self.protocol==PROTOCOL_UDP):
 					data = self.client_sock.recv(5000)
 	# 				print(len(data))
-				elif(self.protocal==PROTOCOL_TCP):
+				elif(self.protocol==PROTOCOL_TCP):
 					data = self.client_sock.recv(5000)
 	# 				print(len(data))
 			except:
@@ -248,10 +248,10 @@ class Client(object):
 	# 				self.send_buffer.put(ack)
 # 					print('send ack!!!')
 
-					if(self.protocal==PROTOCOL_UDP):
+					if(self.protocol==PROTOCOL_UDP):
 						self.client_sock.sendto(ack, self.router['back'])
 	# 					print('send ack!!!')
-					elif(self.protocal==PROTOCOL_TCP):
+					elif(self.protocol==PROTOCOL_TCP):
 						self.client_sock.send(ack)
 
 # 					print(f"return ack with pkt id = {dataFrame['pkt_id']} and timestamp = {time.time()%1000}")
