@@ -387,7 +387,7 @@ class Server(object):
 		save_dir = f"./record/{self.env}/{self.time_mark}"
 		if(not os.path.exists(save_dir)):
 			os.makedirs(save_dir)
-		record_file = f"server_{self.cc}_epoch_{self.epoch}.csv"
+		record_file = f"server_{self.sender_id}_{self.cc}_epoch_{self.epoch}.csv"
 		dataframe = pd.DataFrame.from_dict(self.records)
 		dataframe.to_csv(os.path.join(save_dir, record_file))
 		print("************* save records in file: ", os.path.join(save_dir, record_file))

@@ -141,15 +141,16 @@ def experiment(epoch):
 
 	if(RECORD_TYPE == RECORD_TYPE_DATABASE):
 		file_path = PullData(db_para, int(PER_EPOCH_TIME), record_file)
-		res = cal_performance(file_path)
+		
 
 	elif(RECORD_TYPE == RECORD_TYPE_CSV):
 
 		save_dir = f"./record/{ENV}/{TIME_MARK}"
 	
-		record_file = f"server_{CC}_epoch_{epoch}.csv"
+		record_file = f"server_0_{CC}_epoch_{epoch}.csv"
 		file_path = os.path.join(save_dir, record_file)
-		res = cal_performance(file_path)
+		
+	res = cal_performance(file_path)
 
 	return res
 
