@@ -39,8 +39,14 @@ MULTI_FLOW = True if int(configs.get("TC", "Multiflow"))==1 else False
 
 
 trace = getTrace(TRACE)
+if(len(trace)==0):
+	bd = float(TRACE.split('/')[-1].split('mbps')[0])
+	trace = [bd]*600
+
 trace = trace[:int(TRACE_PORTION*len(trace))] 
 PER_EPOCH_TIME = len(trace)
+
+
 EXPERIMENT_TIME = PER_EPOCH_TIME * TRACE_EPOCH
 
 bw_average = np.array(trace).mean()

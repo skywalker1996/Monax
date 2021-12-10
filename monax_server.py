@@ -127,11 +127,12 @@ class Server(object):
 		
 		
 		self.trace = getTrace(trace_path)
+		
 		if(len(self.trace)==0):
 			bd = float(trace_path.split('/')[-1].split('mbps')[0])
 			self.trace = [bd]*600
 		self.trace = self.trace[:int(trace_portion*len(self.trace))] 
-# 		print("length of the trace is :", len(self.trace))
+		
 # 		print(self.trace[50:70])
 		self.trace_point = 2
 		self.exp_round = exp_round 
@@ -159,7 +160,7 @@ class Server(object):
 		self.send_count = 0
 
 		self.record_start_time = time.time()
-		self.record_save_interval = 0.2
+		self.record_save_interval = 0.05
 
 
 		if(self.cc == CC_PCC):
@@ -380,7 +381,11 @@ class Server(object):
 				if(flag&WRITE_FLAGS):
 # 					print("send func")
 					self.send(fd.fileobj) 
-		self.save_records()
+		
+		if(self.record_type==RECORD_TYPE_CSV):
+			self.save_records()
+		
+		# self.exit()
 
 	def save_records(self):
 		
@@ -532,7 +537,7 @@ class Server(object):
 				print(f"finish trace with trace_point = {self.trace_point}")
 				self.running = False
 				self.trace_point = 0
-				self.exit()
+				# self.exit()
 # 				sys.exit(0)
 			else:
 				self.trace_point = 0
