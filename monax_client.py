@@ -49,25 +49,22 @@ class Client(object):
 		
 		self.receiver_id = receiver_id
 
-		self.cc = self.config.get("experiment", "CC")
-
-
 		
 		if(self.multi_flow):
 			self.multiflow_config = Config(multiflow_cfg)
 			self.ip = self.multiflow_config.get("client-"+str(self.receiver_id), "ip")
 			self.port = int(self.multiflow_config.get("client-"+str(self.receiver_id), "port"))
 			
-			if(receiver_id==0):
-				self.protocol = PROTOCOL_UDP
-				print("********** Monax primary flow")
-			else:
-				self.protocol = PROTOCOL_TCP
-				print("********** TCP flow")
+			self.cc = self.multiflow_config.get("client-"+str(self.receiver_id), "CC")
+			self.protocol = PROTOCOL_MAP[self.cc]
+			print(f"[Flow {self.receiver_id} ({self.protocol})]: client side starts!")
+
 		else:
 			self.ip = self.config.get("client", "local_ip")
 			self.port = int(self.config.get("client", "port"))
+			self.cc = self.config.get("experiment", "CC")
 			self.protocol = PROTOCOL_MAP[self.cc]
+
 
 		self.recv_buffer = Queue(self.recv_buf_size)
 		self.send_buffer= Queue(self.send_buf_size)
@@ -110,6 +107,7 @@ class Client(object):
 		if(self.protocol==PROTOCOL_UDP):
 			self.client_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 			self.client_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+			# self.client_sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
 			self.client_sock.bind((self.ip, self.port))
 		elif(self.protocol==PROTOCOL_TCP):
 			sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

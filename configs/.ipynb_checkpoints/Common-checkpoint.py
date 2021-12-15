@@ -4,14 +4,41 @@ CC_CUBIC = "cubic"
 CC_PCC_ALLEGRO = "pcc-allegro"
 CC_PCC_VIVACE = "pcc-vivace"
 CC_VEGAS = "vegas"
+CC_RENO = "reno"
+CC_PCC = "pcc"
+CC_INDIGO = "indigo"
+CC_RL = "rl"
+CC_LEDBAT = "ledbat"
 
+STREAM_TYPE_DATA = "data"
+STREAM_TYPE_VIDEO = "video"
 
+PROTOCOL_UDP = "UDP"
+PROTOCOL_TCP = "TCP"
+
+RECORD_TYPE_CSV = "csv"
+RECORD_TYPE_DATABASE = "database"
+
+ENV_LOCAL = "local"
+ENV_CLOUD = "cloud"
+
+MULTI_FLOW_MODE_SAME = "same"
+MULTI_FLOW_MODE_SEPARATE = "separate"
 
 PROTOCOL_MAP = {
-	"monax": "UDP",
-	"bbr": "TCP",
-	"cubic": "TCP",
-	"vegas": "TCP",
-	"pcc-allegro": "TCP",
-	"pcc-vivace": "TCP"
+	CC_MONAX: PROTOCOL_UDP,
+	CC_PCC: PROTOCOL_UDP,
+	CC_INDIGO: PROTOCOL_UDP,
+	CC_RL: PROTOCOL_UDP,
+
+	CC_BBR: PROTOCOL_TCP,
+	CC_CUBIC: PROTOCOL_TCP,
+	CC_VEGAS: PROTOCOL_TCP,
+	CC_PCC_ALLEGRO: PROTOCOL_TCP,
+	CC_PCC_VIVACE: PROTOCOL_TCP,
+	CC_RENO: PROTOCOL_TCP,
+	CC_LEDBAT: PROTOCOL_TCP
 }
+
+START_CODE = '{st}'
+LEN_START_CODE = len(START_CODE)

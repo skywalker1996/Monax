@@ -19,3 +19,12 @@ class Config(object):
 		path = os.path.join(file_root, self.cfg_file)
 		config.read(path)
 		return config.sections()
+	
+	def 
+	
+	def write_sections(self, config):
+		with open('config_test.ini', 'w') as f:
+			config.write(f)
+		
+		
+		

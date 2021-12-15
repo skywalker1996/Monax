@@ -25,6 +25,8 @@ TRACE_PORTION = float(configs.get("experiment", "TRACE_PORTION"))
 VIDEO_PATH = configs.get("experiment", "VIDEO")
 BASE_DELAY = configs.get("experiment", "BASE_DELAY")
 
+ENV = configs.get("experiment", "ENV")
+
 
 STREAM_TYPE = configs.get("experiment", "STREAM_TYPE")
 CC = configs.get("experiment", "CC")
@@ -33,12 +35,19 @@ RECORD_TYPE = configs.get("experiment", "RECORD_TYPE")
 TIME_MARK = str(time.strftime('%Y_%m_%d_%H_%M_%S',time.localtime(time.time())))
 
 
-MULTI_FLOW = True if int(configs.get("TC", "Multiflow"))==1 else False
+MULTI_FLOW = True if int(configs.get("TC", "multiflow"))==1 else False
+MULTI_FLOW_MODE = configs.get("TC", "multiflow_mode")
 
 
 trace = getTrace(TRACE)
+if(len(trace)==0):
+	bd = float(TRACE.split('/')[-1].split('mbps')[0])
+	trace = [bd]*600
+
 trace = trace[:int(TRACE_PORTION*len(trace))] 
 PER_EPOCH_TIME = len(trace)
+
+
 EXPERIMENT_TIME = PER_EPOCH_TIME * TRACE_EPOCH
 
 bw_average = np.array(trace).mean()
@@ -139,15 +148,16 @@ def experiment(epoch):
 
 	if(RECORD_TYPE == RECORD_TYPE_DATABASE):
 		file_path = PullData(db_para, int(PER_EPOCH_TIME), record_file)
-		res = cal_performance(file_path)
+		
 
 	elif(RECORD_TYPE == RECORD_TYPE_CSV):
 
-		save_dir = f"./record/{TIME_MARK}"
+		save_dir = f"./record/{ENV}/{TIME_MARK}"
 	
-		record_file = f"server_{CC}_epoch_{epoch}.csv"
+		record_file = f"server_0_{CC}_epoch_{epoch}.csv"
 		file_path = os.path.join(save_dir, record_file)
-		res = cal_performance(file_path)
+		
+	res = cal_performance(file_path)
 
 	return res
 
@@ -171,8 +181,13 @@ if __name__ == '__main__':
 							  'send_rate_average':[r['send_rate_average'] for r in results], 
 							  'delivery_rate_average':[r['delivery_rate_average'] for r in results]})
 
-	file_path = f"./results/{STREAM_TYPE}/{CC}_{TIME_MARK}.csv"
-	dataframe.to_csv(file_path, sep=',', mode='w+')
+
+	file_dir = f"./results/{ENV}/{STREAM_TYPE}"
+
+	if(not os.path.exists(file_dir)):
+		os.makedirs(file_dir)
+	file_name = f"{CC}_{TIME_MARK}.csv"
+	dataframe.to_csv(os.path.join(file_dir, file_name), sep=',', mode='w+')
 	print("========= Experiment finish ==========")
 
 # 	print('============ Results ============')

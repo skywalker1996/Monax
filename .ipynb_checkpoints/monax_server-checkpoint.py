@@ -66,7 +66,7 @@ class Server(object):
 		self.recv_buffer = Queue(self.recv_buf_size)
 		self.send_buffer= Queue(self.send_buf_size)
 
-		self.cc = self.config.get("experiment", "CC")
+		
 
 		self.env = self.config.get("experiment", "ENV")
 
@@ -89,17 +89,23 @@ class Server(object):
 			self.flow_start_time = int(time_range.split(',')[0])
 			self.flow_end_time = int(time_range.split(',')[1]) if time_range.split(',')[1]!='end' else 'end'
 			
-			if(sender_id==0):
-				self.protocal = PROTOCOL_UDP
-				print("********** Monax primary flow")
-			else:
-				self.protocal = PROTOCOL_TCP
-				print("********** TCP flow")
+			self.cc = self.multiflow_config.get("server-"+str(self.sender_id), "CC")
+			self.protocol = PROTOCOL_MAP[self.cc]
+
+			print(f"[Flow {self.sender_id} ({self.protocol})]: server side starts!")
+
+			# if(sender_id==0):
+			# 	self.protocol = PROTOCOL_UDP
+			# 	print("********** Monax primary flow")
+			# else:
+			# 	self.protocol = PROTOCOL_TCP
+			# 	print("********** TCP flow")
 			
 		else:
 			self.client_ip = self.config.get("client", "ip")
 			self.client_port = int(self.config.get("client", "port"))
-			self.protocal = PROTOCOL_MAP[self.cc]
+			self.cc = self.config.get("experiment", "CC")
+			self.protocol = PROTOCOL_MAP[self.cc]
 			
 		
 		self.primary_flow = True if self.sender_id==0 else False
@@ -127,11 +133,12 @@ class Server(object):
 		
 		
 		self.trace = getTrace(trace_path)
+		
 		if(len(self.trace)==0):
 			bd = float(trace_path.split('/')[-1].split('mbps')[0])
 			self.trace = [bd]*600
 		self.trace = self.trace[:int(trace_portion*len(self.trace))] 
-# 		print("length of the trace is :", len(self.trace))
+		
 # 		print(self.trace[50:70])
 		self.trace_point = 2
 		self.exp_round = exp_round 
@@ -159,7 +166,7 @@ class Server(object):
 		self.send_count = 0
 
 		self.record_start_time = time.time()
-		self.record_save_interval = 0.2
+		self.record_save_interval = 0.05
 
 
 		if(self.cc == CC_PCC):
@@ -171,7 +178,7 @@ class Server(object):
 		# elif(self.cc == CC_INDIGO):
 		# 	self.RC_Module = Test("lib/rate_control/model/model")
 
-
+		
 		### Record Setting 
 		self.record_type = self.config.get("experiment", "RECORD_TYPE")
 
@@ -199,14 +206,15 @@ class Server(object):
 # 		time.sleep(1)
 # 		avail_port = self.handshake()
 		### send socke	t
-		if(self.protocal==PROTOCOL_UDP):
+		if(self.protocol==PROTOCOL_UDP):
 			self.server_sock = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
 			self.server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+			# self.server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
 			self.server_sock.connect((self.client_ip, self.client_port))
 # 			self.server_sock.setblocking(False)
 			logging.debug('connect client addr: {}, {}'.format(self.client_ip, self.client_port))
 
-		elif(self.protocal==PROTOCOL_TCP):
+		elif(self.protocol==PROTOCOL_TCP):
 # 			TCP_CONGESTION = getattr(socket, 'TCP_CONGESTION', 13)
 			self.server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 			self.server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -283,7 +291,7 @@ class Server(object):
 
 		log_info = {}
 		if(self.using_rate_control):
-			if(self.protocal==PROTOCOL_UDP):
+			if(self.protocol==PROTOCOL_UDP):
 				### cold start
 				if(self.record_count>11):
 					state = {'network_delay': self.network_delay_record[-10:],
@@ -333,7 +341,7 @@ class Server(object):
 		data = None
 # 		if(self.current_send_time-self.last_send_time>=self.sending_interval):
 		
-		if(self.check_flow() and (self.protocal==PROTOCOL_TCP or self.window_is_open())):
+		if(self.check_flow() and (self.protocol==PROTOCOL_TCP or self.window_is_open())):
 			if(self.stream_type==STREAM_TYPE_VIDEO):
 				try:
 					(data, self.frame_id, priority, put_time) = self.send_buffer.get_nowait()
@@ -380,14 +388,18 @@ class Server(object):
 				if(flag&WRITE_FLAGS):
 # 					print("send func")
 					self.send(fd.fileobj) 
-		self.save_records()
+		
+		if(self.record_type==RECORD_TYPE_CSV):
+			self.save_records()
+		
+		# self.exit()
 
 	def save_records(self):
 		
 		save_dir = f"./record/{self.env}/{self.time_mark}"
 		if(not os.path.exists(save_dir)):
-			os.mkdir(save_dir)
-		record_file = f"server_{self.cc}_epoch_{self.epoch}.csv"
+			os.makedirs(save_dir)
+		record_file = f"server_{self.sender_id}_{self.cc}_epoch_{self.epoch}.csv"
 		dataframe = pd.DataFrame.from_dict(self.records)
 		dataframe.to_csv(os.path.join(save_dir, record_file))
 		print("************* save records in file: ", os.path.join(save_dir, record_file))
@@ -532,7 +544,7 @@ class Server(object):
 				print(f"finish trace with trace_point = {self.trace_point}")
 				self.running = False
 				self.trace_point = 0
-				self.exit()
+				# self.exit()
 # 				sys.exit(0)
 			else:
 				self.trace_point = 0

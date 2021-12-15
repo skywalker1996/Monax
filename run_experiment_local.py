@@ -35,7 +35,8 @@ RECORD_TYPE = configs.get("experiment", "RECORD_TYPE")
 TIME_MARK = str(time.strftime('%Y_%m_%d_%H_%M_%S',time.localtime(time.time())))
 
 
-MULTI_FLOW = True if int(configs.get("TC", "Multiflow"))==1 else False
+MULTI_FLOW = True if int(configs.get("TC", "multiflow"))==1 else False
+MULTI_FLOW_MODE = configs.get("TC", "multiflow_mode")
 
 
 trace = getTrace(TRACE)
@@ -78,8 +79,14 @@ def generate_comds(multi_flow_config, epoch):
 	   
 	time_range = [(0,'end')]
 	
-	for i in range(1,flow_num):
-		time_range.append((i*interval, (2*flow_num-i-1)*interval))
+	if(MULTI_FLOW_MODE == MULTI_FLOW_MODE_SAME):
+		for i in range(1,flow_num):
+			time_range.append((0,'end'))
+	elif(MULTI_FLOW_MODE == MULTI_FLOW_MODE_SEPARATE):
+		for i in range(1,flow_num):
+			time_range.append((i*interval, (2*flow_num-i-1)*interval))
+	else:
+		raise Exception("multi flow mode error!")
 		
 	server_comds = []
 	client_comds = []
