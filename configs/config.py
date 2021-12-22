@@ -5,31 +5,43 @@ class Config(object):
 	def __init__(self, cfg_file):
 
 		self.cfg_file = cfg_file
+		self.config = configparser.ConfigParser()
+		file_root = os.path.dirname(__file__)
+		self.config_path = os.path.join(file_root, self.cfg_file)
+		self.config.read(self.config_path)
 
 	def get(self, section, key):
-		config = configparser.ConfigParser()
-		file_root = os.path.dirname(__file__)
-		path = os.path.join(file_root, self.cfg_file)
-		config.read(path)
-		return config.get(section, key)
+		return self.config.get(section, key)
 
 	def sections(self):
-		config = configparser.ConfigParser()
-		file_root = os.path.dirname(__file__)
-		path = os.path.join(file_root, self.cfg_file)
-		config.read(path)
-		return config.sections()
-	
+		return self.config.sections()
 	
 	def write_sections(self, configs):
-		config = configparser.ConfigParser()
 
+		new_config = configparser.ConfigParser()
 		for section in configs:
-			config[section] = configs[section]
+			new_config[section] = configs[section]
 
-		with open(self.cfg_file, 'w') as f:
-			config.write(f)
+		with open(self.config_path, 'w') as f:
+			new_config.write(f)
+
+
+
+
+
+
+
+
+
+
+
+
+
+	
 		
-		
+
+
+
+
 	
 	

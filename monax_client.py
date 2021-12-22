@@ -45,7 +45,7 @@ class Client(object):
 		self.send_buf_size = int(self.config.get("client", "send_buf_size"))
 		
 		self.receiver_id = receiver_id
-		self.multi_flow = True if int(self.config.get("TC", "Multiflow"))==1 else False
+		self.multi_flow = True if int(self.config.get("multiflow", "multiflow"))==1 else False
 		
 		self.receiver_id = receiver_id
 
@@ -408,6 +408,7 @@ if __name__ == '__main__':
 
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--id', type=int, default=1)
+	parser.add_argument('--mark', default="default")
 	parser.add_argument('--time_mark', default="default")
 	parser.add_argument('--epoch', type=int, default=0)
 	args = parser.parse_args()

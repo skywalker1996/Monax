@@ -11,12 +11,17 @@ import tempfile
 import pandas as pd
 import os
 
+
+GLOBAL_CONFIG_FILE = 'global.conf'
+MULTI_FLOW_CONFIG_FILE = 'multi-flow.conf'
+
+TIME_MARK = str(time.strftime('%Y_%m_%d_%H_%M_%S',time.localtime(time.time())))
+
 out_temp = tempfile.SpooledTemporaryFile(1000000)
 fileno = out_temp.fileno()
 
 
-configs = Config('global.conf')
-multi_flow_config = Config('multi-flow.conf')
+configs = Config(GLOBAL_CONFIG_FILE)
 
 ### initiaize
 TRACE = configs.get("experiment", "TRACE")
@@ -32,11 +37,11 @@ STREAM_TYPE = configs.get("experiment", "STREAM_TYPE")
 CC = configs.get("experiment", "CC")
 RECORD_TYPE = configs.get("experiment", "RECORD_TYPE")
 
-TIME_MARK = str(time.strftime('%Y_%m_%d_%H_%M_%S',time.localtime(time.time())))
 
+MULTI_FLOW = True if int(configs.get("multiflow", "multiflow"))==1 else False
+MULTI_FLOW_MODE = configs.get("multiflow", "multiflow_mode")
+COMPETE_FLOW = configs.get("multiflow", "compete_flow")
 
-MULTI_FLOW = True if int(configs.get("TC", "multiflow"))==1 else False
-MULTI_FLOW_MODE = configs.get("TC", "multiflow_mode")
 
 
 trace = getTrace(TRACE)
@@ -61,12 +66,47 @@ db_para['bucket'] = configs.get('database', 'bucket')
 
 
 
-def generate_comds(multi_flow_config, epoch):
+def generate_multiFlow_configs(cc, count, ip):
+	configs = {}
+	flow_count = 0
+	for i in range(len(cc)):
+		for j in range(count[i]):
+			server_section = {}
+			client_section = {}
+
+			server_section["ip"] = ip
+			server_section["CC"] = cc[i]
+
+			client_section["ip"] = ip
+			client_section["CC"] = cc[i]
+			client_section["ip"] = ip
+			client_section["port"] = 9000 + flow_count
+			client_section["CC"] = cc[i]
+
+			configs[f"server-{flow_count}"] = server_section
+			configs[f"client-{flow_count}"] = client_section
+
+			flow_count += 1
+
+	return configs
+
+def generate_multiflow_configs(compete_flow_count):
+
+	cc = [CC, COMPETE_FLOW]
+	count = [1, compete_flow_count]
+	ip = "172.26.254.98"
+	multi_flow_config = Config(MULTI_FLOW_CONFIG_FILE)
+	configs = generate_multiFlow_configs(cc, count, ip)
+	multi_flow_config.write_sections(configs)
+	return
+
+
+def generate_comds(multi_flow_config, epoch, mark):
 	
 	sections = multi_flow_config.sections()
 	
-	interval = int(multi_flow_config.get('options', 'interval'))		
-	flow_num = int((len(sections)-1)/2)
+	interval = int(configs.get('multiflow', 'interval'))		
+	flow_num = int(len(sections)/2)
 	
 # 	0,end                    id*interval, flow_num+(flow_num-id-1) 
 # 	1*interval,
@@ -92,14 +132,14 @@ def generate_comds(multi_flow_config, epoch):
 	client_comds = []
 	
 	for i in range(flow_num):
-		server_comds.append(f'python monax_server.py --id {i} --time_range {time_range[i][0]},{time_range[i][1]} --time_mark {TIME_MARK} --epoch {epoch}')
-		client_comds.append(f'python monax_client.py --id {i} --time_mark {TIME_MARK} --epoch {epoch}')
+		server_comds.append(f'python monax_server.py --id {i} --time_range {time_range[i][0]},{time_range[i][1]} --mark {mark} --time_mark {TIME_MARK} --epoch {epoch}')
+		client_comds.append(f'python monax_client.py --id {i} --mark {mark} --time_mark {TIME_MARK} --epoch {epoch}')
 	
 	return server_comds, client_comds
 	
 	
 
-def experiment(epoch):	
+def experiment(epoch, mark):	
 
 	### kill existing monax programs
 	print("starting ...")
@@ -107,13 +147,14 @@ def experiment(epoch):
 	time.sleep(2)
 
 	if(MULTI_FLOW):
-		server_comds, client_comds = generate_comds(multi_flow_config, epoch)
+		multi_flow_config = Config(MULTI_FLOW_CONFIG_FILE)
+		server_comds, client_comds = generate_comds(multi_flow_config, epoch, mark)
 
 		server_comds = ' & '.join(server_comds)
 		client_comds = ' & '.join(client_comds)
 	else:
-		server_comds = f'python monax_server.py --id 0 --time_mark {TIME_MARK} --epoch {epoch}'
-		client_comds = f'python monax_client.py --id 0 --time_mark {TIME_MARK} --epoch {epoch}'
+		server_comds = f'python monax_server.py --id 0 --mark {mark} --time_mark {TIME_MARK} --epoch {epoch}'
+		client_comds = f'python monax_client.py --id 0 --mark {mark} --time_mark {TIME_MARK} --epoch {epoch}'
 	
 	### start monax client and server
 	start_server = ['mm-delay', str(BASE_DELAY), 
@@ -158,7 +199,7 @@ def experiment(epoch):
 
 	elif(RECORD_TYPE == RECORD_TYPE_CSV):
 
-		save_dir = f"./record/{ENV}/{TIME_MARK}"
+		save_dir = f"./record/{ENV}/{TIME_MARK}/{mark}"
 	
 		record_file = f"server_0_{CC}_epoch_{epoch}.csv"
 		file_path = os.path.join(save_dir, record_file)
@@ -171,21 +212,35 @@ if __name__ == '__main__':
 
 	results = []
 
-	EPOCH = 1
-	for i in range(EPOCH):
-		print(f"epoch: {i}")
-		res = experiment(i)
-		print(res)
-		results.append(res)
+	
+	if(MULTI_FLOW):
+		for i in range(16):
+			compete_flow_num = i+1
+			generate_multiflow_configs(compete_flow_num)
+			mark = f"{CC}-{COMPETE_FLOW}-{compete_flow_num}-{MULTI_FLOW_MODE}"
+			print(f"experiment #{i} --- compete flow number = {compete_flow_num}")
+			res = experiment(0, mark)
+			print(res)
+			results.append(res)
+		
 
-	#### compute avg results
+	else:
+		mark = str(time.strftime('%Y_%m_%d_%H_%M_%S',time.localtime(time.time())))
+		EPOCH = 1
+		for i in range(EPOCH):
+			print(f"epoch: {i}")
+			res = experiment(i, mark)
+			print(res)
+			results.append(res)
+
+		#### compute avg results
 
 	dataframe = pd.DataFrame({'RTT_average':[r['RTT_average'] for r in results], 
-							  'queue_delay_average':[r['queue_delay_average'] for r in results], 
-							  'end2end_average':[r['end2end_average'] for r in results], 
-							  'Loss_average':[r['Loss_average'] for r in results],
-							  'send_rate_average':[r['send_rate_average'] for r in results], 
-							  'delivery_rate_average':[r['delivery_rate_average'] for r in results]})
+							'queue_delay_average':[r['queue_delay_average'] for r in results], 
+							'end2end_average':[r['end2end_average'] for r in results], 
+							'Loss_average':[r['Loss_average'] for r in results],
+							'send_rate_average':[r['send_rate_average'] for r in results], 
+							'delivery_rate_average':[r['delivery_rate_average'] for r in results]})
 
 
 	file_dir = f"./results/{ENV}/{STREAM_TYPE}"

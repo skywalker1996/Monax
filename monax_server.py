@@ -50,7 +50,7 @@ logging.basicConfig(filename='./logs/server.log', level=logging.DEBUG, format=LO
 
 
 class Server(object): 
-	def __init__(self, global_cfg, multiflow_cfg, sender_id, time_range, time_mark, epoch):
+	def __init__(self, global_cfg, multiflow_cfg, sender_id, time_range, mark, time_mark, epoch):
 
 		logging.debug("init start")
 		self.config = Config(global_cfg)
@@ -61,16 +61,15 @@ class Server(object):
 		self.stream_type = self.config.get("experiment", "STREAM_TYPE")
 		self.video_path = self.config.get("experiment", "VIDEO")
 		
-		self.multi_flow = True if int(self.config.get("TC", "Multiflow"))==1 else False
+		self.multi_flow = True if int(self.config.get("multiflow", "multiflow"))==1 else False
 
 		self.recv_buffer = Queue(self.recv_buf_size)
 		self.send_buffer= Queue(self.send_buf_size)
 
-		
-
 		self.env = self.config.get("experiment", "ENV")
 
 		### time mark for record file directory
+		self.mark = mark
 		self.time_mark = time_mark
 		self.epoch = epoch
 
@@ -395,8 +394,8 @@ class Server(object):
 		# self.exit()
 
 	def save_records(self):
-		
-		save_dir = f"./record/{self.env}/{self.time_mark}"
+
+		save_dir = f"./record/{self.env}/{self.time_mark}/{self.mark}"
 		if(not os.path.exists(save_dir)):
 			os.makedirs(save_dir)
 		record_file = f"server_{self.sender_id}_{self.cc}_epoch_{self.epoch}.csv"
@@ -567,13 +566,14 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--id', type=int, default=0)
 	parser.add_argument('--time_range',default='0,end')
+	parser.add_argument('--mark', default="default")
 	parser.add_argument('--time_mark', default="default")
 	parser.add_argument('--epoch', type=int, default=0)
 	args = parser.parse_args()
 
 	server = Server(global_cfg = 'global.conf', multiflow_cfg = 'multi-flow.conf', 
-					sender_id=args.id, time_range=args.time_range, time_mark=args.time_mark, 
-					epoch=args.epoch)
+					sender_id=args.id, time_range=args.time_range, mark=args.mark,
+					time_mark=args.time_mark, epoch=args.epoch)
 	server.start()
 	print("server exit!!!")
 
