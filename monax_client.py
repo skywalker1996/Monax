@@ -48,7 +48,7 @@ class Client(object):
 		self.multi_flow = True if int(self.config.get("multiflow", "multiflow"))==1 else False
 		
 		self.receiver_id = receiver_id
-
+		self.env = self.config.get("experiment", "ENV")
 		
 		if(self.multi_flow):
 			self.multiflow_config = Config(multiflow_cfg)
@@ -60,7 +60,10 @@ class Client(object):
 			print(f"[Flow {self.receiver_id} ({self.protocol})]: client side starts!")
 
 		else:
-			self.ip = self.config.get("client", "local_ip")
+			if(self.env==ENV_LOCAL):
+				self.ip = self.config.get("client", "local_ip")
+			else:
+				self.ip == self.config.get("client", "ip")
 			self.port = int(self.config.get("client", "port"))
 			self.cc = self.config.get("experiment", "CC")
 			self.protocol = PROTOCOL_MAP[self.cc]

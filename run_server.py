@@ -34,7 +34,7 @@ ENV = configs.get("experiment", "ENV")
 TIME_MARK = str(time.strftime('%Y_%m_%d_%H_%M_%S',time.localtime(time.time())))
 
 
-MULTI_FLOW = True if int(configs.get("TC", "Multiflow"))==1 else False
+MULTI_FLOW = True if int(configs.get("multiflow", "multiflow"))==1 else False
 
 
 trace = getTrace(TRACE)
@@ -52,14 +52,14 @@ db_para['org'] = configs.get('database', 'org')
 db_para['bucket'] = configs.get('database', 'bucket')
 
 
-def experiment(epoch):	
+def experiment(epoch, mark):	
 
 	### kill existing monax programs
 	print("starting ...")
 	Popen("kill -9 $(ps -aux | grep monax_server | awk '{print $2}')", shell=True)
 	time.sleep(2)
 
-	start_server = f'python monax_server.py --id 0 --time_mark {TIME_MARK} --epoch {epoch}'
+	start_server = f'python monax_server.py --id 0 --mark {mark} --time_mark {TIME_MARK} --epoch {epoch}'
 		
 	server = Popen(start_server, shell=True)
 
@@ -78,10 +78,15 @@ def experiment(epoch):
 
 	elif(RECORD_TYPE == RECORD_TYPE_CSV):
 
-		save_dir = f"./record/{ENV}/{TIME_MARK}"
+		if(MULTI_FLOW):
+			save_dir = f"./record/{ENV}/{TIME_MARK}/{mark}"
+		else:
+			save_dir = f"./record/{ENV}/{TIME_MARK}"
+
 	
-		record_file = f"server_{CC}_epoch_{epoch}.csv"
+		record_file = f"server_0_{CC}_epoch_{epoch}.csv"
 		file_path = os.path.join(save_dir, record_file)
+
 		res = cal_performance(file_path)
 
 	return res
@@ -89,13 +94,13 @@ def experiment(epoch):
 if __name__ == '__main__':
 
 	results = []
-
-	res = experiment(0)
+	mark = str(time.strftime('%Y_%m_%d_%H_%M_%S',time.localtime(time.time())))
+	res = experiment(0, mark)
 	print(res)
 	results.append(res)
 
 	#### compute avg results
-
+	
 	dataframe = pd.DataFrame({'RTT_average':[r['RTT_average'] for r in results], 
 							  'queue_delay_average':[r['queue_delay_average'] for r in results], 
 							  'end2end_average':[r['end2end_average'] for r in results], 

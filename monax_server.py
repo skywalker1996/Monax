@@ -101,10 +101,14 @@ class Server(object):
 			# 	print("********** TCP flow")
 			
 		else:
-			self.client_ip = self.config.get("client", "ip")
+			if(self.env==ENV_LOCAL):
+				self.client_ip = self.config.get("client", "local_ip")
+			else:
+				self.client_ip = self.config.get("client", "ip")
 			self.client_port = int(self.config.get("client", "port"))
 			self.cc = self.config.get("experiment", "CC")
 			self.protocol = PROTOCOL_MAP[self.cc]
+
 			
 		
 		self.primary_flow = True if self.sender_id==0 else False
@@ -366,7 +370,7 @@ class Server(object):
 			self.send_count = 0
 # 				if(DEBUG):
 # 					self.Log_send('server send throughput = {}'.format(self.sending_rate))
-			# logging.debug('******server send throughput = {}'.format(self.sending_rate))
+			print('******server send throughput = {}'.format(self.sending_rate))
 			# if(self.primary_flow):
 			# 	print('******server send throughput = {}'.format(self.sending_rate))
 			self.bw_limit = self.getNextBandwidth()
@@ -395,9 +399,15 @@ class Server(object):
 
 	def save_records(self):
 
-		save_dir = f"./record/{self.env}/{self.time_mark}/{self.mark}"
-		if(not os.path.exists(save_dir)):
-			os.makedirs(save_dir)
+		if(self.multi_flow):
+			save_dir = f"./record/{self.env}/{self.time_mark}/{self.mark}"
+			if(not os.path.exists(save_dir)):
+				os.makedirs(save_dir)
+		else:
+			save_dir = f"./record/{self.env}/{self.time_mark}"
+			if(not os.path.exists(save_dir)):
+				os.makedirs(save_dir)
+
 		record_file = f"server_{self.sender_id}_{self.cc}_epoch_{self.epoch}.csv"
 		dataframe = pd.DataFrame.from_dict(self.records)
 		dataframe.to_csv(os.path.join(save_dir, record_file))

@@ -33,7 +33,7 @@ RECORD_TYPE = configs.get("experiment", "RECORD_TYPE")
 TIME_MARK = str(time.strftime('%Y_%m_%d_%H_%M_%S',time.localtime(time.time())))
 
 
-MULTI_FLOW = True if int(configs.get("TC", "Multiflow"))==1 else False
+MULTI_FLOW = True if int(configs.get("multiflow", "multiflow"))==1 else False
 
 
 trace = getTrace(TRACE)
