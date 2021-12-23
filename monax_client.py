@@ -63,7 +63,7 @@ class Client(object):
 			if(self.env==ENV_LOCAL):
 				self.ip = self.config.get("client", "local_ip")
 			else:
-				self.ip == self.config.get("client", "ip")
+				self.ip = self.config.get("client", "local_ip")
 			self.port = int(self.config.get("client", "port"))
 			self.cc = self.config.get("experiment", "CC")
 			self.protocol = PROTOCOL_MAP[self.cc]
