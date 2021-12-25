@@ -222,6 +222,8 @@ class Client(object):
 				else:
 					dataFrame = self.Unpack_DataFrame(packet)
 
+				print(dataFrame)
+
 # 				print(f"*** pkt_id = {dataFrame['pkt_id']} with timestamp = {dataFrame['create_time']}")
 				
 # 				print("dataFrame = ", dataFrame)

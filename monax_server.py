@@ -256,6 +256,8 @@ class Server(object):
 
 		### update state
 		self.current_rtt = (int((time.time()%(10**6))*1000) - data['create_time'])/1.0 #ms
+		print(data)
+		print(f"current time stamp = {(time.time()%(10**6))*1000} while data['create_time'] = {data['create_time']}")
 		
 # 		print(f"current time = {int((time.time()%(10**6))*1000)} while recv create_time = {data['create_time']}", )
 
@@ -372,7 +374,7 @@ class Server(object):
 # 					self.Log_send('server send throughput = {}'.format(self.sending_rate))
 			print('******server send throughput = {}'.format(self.sending_rate))
 			# if(self.primary_flow):
-			# 	print('******server send throughput = {}'.format(self.sending_rate))
+# 			print('******server send throughput = {}'.format(self.sending_rate))
 			self.bw_limit = self.getNextBandwidth()
 		else:
 			if(data is not None):
@@ -395,7 +397,7 @@ class Server(object):
 		if(self.record_type==RECORD_TYPE_CSV):
 			self.save_records()
 		
-		# self.exit()
+		self.exit()
 
 	def save_records(self):
 

@@ -21,12 +21,14 @@ packet = packet.encode()
 count = 10
 
 server_send_proxy.bind(("172.26.254.98", 10001))
+# server_send_proxy.bind(("47.101.194.15", 10000))
+
 # server_send_proxy.bind(("100.64.0.4", 10000))
 # server_send_proxy.bind(("100.64.0.2", 10000))
 # server_send_proxy.sendto(packet, ("172.26.254.98", 10000))
 # server_send_proxy.sendto(packet, ("100.64.0.1", 10000))
 # server_send_proxy.sendto(packet, ("127.0.0.1", 10000))
-server_send_proxy.sendto(packet, ("100.64.0.2", 10000))
+server_send_proxy.sendto(packet, ("47.101.194.15", 10000))
 data, address = server_send_proxy.recvfrom(500)
 print(f"recv data len = {len(data)} from address: {address}")
 
