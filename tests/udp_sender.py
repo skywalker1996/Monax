@@ -34,7 +34,6 @@ print(f"recv data len = {len(data)} from address: {address}")
 
 
 
-
 # while(True):
 # 	count-=1;
 # # 	data['id'] = pkt_id

@@ -256,8 +256,8 @@ class Server(object):
 
 		### update state
 		self.current_rtt = (int((time.time()%(10**6))*1000) - data['create_time'])/1.0 #ms
-		print(data)
-		print(f"current time stamp = {(time.time()%(10**6))*1000} while data['create_time'] = {data['create_time']}")
+		# print(data)
+		# print(f"current time stamp = {(time.time()%(10**6))*1000} while data['create_time'] = {data['create_time']}")
 		
 # 		print(f"current time = {int((time.time()%(10**6))*1000)} while recv create_time = {data['create_time']}", )
 
