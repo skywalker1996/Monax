@@ -33,6 +33,7 @@ logging.basicConfig(filename='./logs/client.log', level=logging.DEBUG, format=LO
 	
 START_CODE = '{st}'
 LEN_START_CODE = len(START_CODE)
+THROUGHPUT_ESTIMATE_INTERVAL = 0.1
 
 class Client(object):
 	def __init__(self, global_cfg, multiflow_cfg, receiver_id):
@@ -232,6 +233,12 @@ class Client(object):
 				if(dataFrame['pkt_id']%self.ack_period==0 and dataFrame['pkt_id']!=0):
 					recv_count = 0
 					total = 0
+
+					# estimated_bw = (recv_size*8)/((time.time()-start_time)*(10**6))  #Mbps
+					# recv_size = 0
+					# start_time = time.time()
+					# print("Estimated throughput = {}".format(estimated_bw))
+
 					# pkt_log[self.current_window]+=1
 					windows = list(pkt_log.keys())
 # 						print(windows)
@@ -267,6 +274,7 @@ class Client(object):
 						record = self.construct_data(estimated_bw,self.one_way_delay)
 						self.Monitor.pushData(measurement = 'monax-client-'+str(self.receiver_id), datapoints = [record], tags = {'version': 0.1} )
 				else:
+					# recv_size+=len(packet)
 					if(dataFrame['frame_id']>=self.current_frame_id-1):
 						if(int(dataFrame['pkt_id']/self.ack_period) in pkt_log):
 	# 						print(f"#198 add window: {int(dataFrame['pkt_id']/self.ack_period)}")
@@ -280,11 +288,11 @@ class Client(object):
 						continue
 
 				current_time = time.time()
-				if(current_time-start_time>=1):
-					estimated_bw = (recv_size*8)/10**6  #Mbps
+				if(current_time-start_time>=THROUGHPUT_ESTIMATE_INTERVAL):
+					estimated_bw = (recv_size*8)/(THROUGHPUT_ESTIMATE_INTERVAL*(10**6))  #Mbps
 					recv_size = 0
 					start_time = time.time()
-					# logging.debug("Estimated throughput = {}".format(estimated_bw))
+					# print("Estimated throughput = {}".format(estimated_bw))
 	# 				if DEBUG:
 	# 					self.Log_send("Estimated throughput = {}".format(estimated_bw)) 
 				else:

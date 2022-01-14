@@ -40,6 +40,9 @@ DATE_FORMAT = "%m/%d/%Y %H:%M:%S %p"
 
 DATA_LOAD = ('1'*1280).encode()
 
+EXTIMATE_INTERVAL = 0.1
+RECORD_SAVE_INTERVAL = 0.05
+
 
 if not os.path.exists('./logs'):
 	os.mkdir('./logs')
@@ -165,11 +168,14 @@ class Server(object):
 		### Estimate Setting 
 		self.estimate_start_time = time.time()
 		self.last_send_time = time.time()
-		self.estimate_interval = 1
+		
 		self.send_count = 0
 
+		### bandwidth switch time mark
+		self.bandwidth_start_time = time.time()
+
 		self.record_start_time = time.time()
-		self.record_save_interval = 0.05
+		
 
 
 		if(self.cc == CC_PCC):
@@ -200,7 +206,10 @@ class Server(object):
 			self.records["queue_delay"] = []
 			self.records["packet_loss"] = []
 			self.records["server_sending_rate"]	= []
+			self.records["sending_rate_ewma"] = []
 			self.records["delivery_rate"] = []
+			self.records["bandwidth"] = []
+
 			
 		# print('connecting database successfully!')
 		
@@ -323,18 +332,20 @@ class Server(object):
 	# 					print('sending buffer size: ', self.send_buffer.qsize())
 
 		current_time = time.time()
-		if(current_time - self.record_start_time >= self.record_save_interval):
+		if(current_time - self.record_start_time >= RECORD_SAVE_INTERVAL):
 			if(self.record_type == RECORD_TYPE_DATABASE):
 # 				print(f"upload data: RTT :{self.rtt_ewma}  loss: {self.current_loss}")
 				record = self.construct_data(self.current_rtt, self.current_queue_delay, self.current_loss, self.sending_rate, data['recv_throughput'], utility, self.cwnd, self.bw_limit, log_info)
 				self.Monitor.pushData(measurement = 'monax-server-'+str(self.sender_id), datapoints = [record], tags = {'version': 0.1} )
 			elif(self.record_type == RECORD_TYPE_CSV):
-				self.records["time"].append(int(time.time()))
+				self.records["time"].append(round(time.time(),3))
 				self.records["rtt"].append(self.current_rtt)
 				self.records["queue_delay"].append(self.current_queue_delay)
 				self.records["packet_loss"].append(self.current_loss)
 				self.records["server_sending_rate"].append(self.sending_rate)
+				self.records["sending_rate_ewma"].append(self.sending_rate_ewma)
 				self.records["delivery_rate"].append(data['recv_throughput'])
+				self.records["bandwidth"].append(self.bw_limit)
 
 			self.record_start_time = time.time()
 
@@ -366,19 +377,23 @@ class Server(object):
 			# print('send data index', send_index)
 		self.current_send_time = time.time()
 		current_time = time.time()
-		if(current_time - self.estimate_start_time >= self.estimate_interval):
-			self.sending_rate = (self.send_count*8)/(self.estimate_interval*(10**6))
+		if(current_time - self.estimate_start_time >= EXTIMATE_INTERVAL):
+			self.sending_rate = (self.send_count*8)/(EXTIMATE_INTERVAL*(10**6))
 			self.estimate_start_time = time.time()
 			self.send_count = 0
 # 				if(DEBUG):
 # 					self.Log_send('server send throughput = {}'.format(self.sending_rate))
-			print('******server send throughput = {}'.format(self.sending_rate))
+			# print('******server send throughput = {}'.format(self.sending_rate))
 			# if(self.primary_flow):
 # 			print('******server send throughput = {}'.format(self.sending_rate))
-			self.bw_limit = self.getNextBandwidth()
+			
 		else:
 			if(data is not None):
 				self.send_count+=len(data)
+
+		if(current_time - self.bandwidth_start_time >= 1):
+			self.bandwidth_start_time = time.time()
+			self.bw_limit = self.getNextBandwidth()
 
 		self.last_send_time = self.current_send_time
 
