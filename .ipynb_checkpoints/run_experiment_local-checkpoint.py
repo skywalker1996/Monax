@@ -199,7 +199,11 @@ def experiment(epoch, mark):
 
 	elif(RECORD_TYPE == RECORD_TYPE_CSV):
 
-		save_dir = f"./record/{ENV}/{TIME_MARK}/{mark}"
+		if(MULTI_FLOW):
+			save_dir = f"./record/{ENV}/{TIME_MARK}/{mark}"
+		else:
+			save_dir = f"./record/{ENV}/{TIME_MARK}"
+		
 	
 		record_file = f"server_0_{CC}_epoch_{epoch}.csv"
 		file_path = os.path.join(save_dir, record_file)

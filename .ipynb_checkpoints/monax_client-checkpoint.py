@@ -13,6 +13,7 @@ import ipaddress
 import selectors
 import logging
 import sys
+import os
 import argparse
 from configs.Common import *
 from utils.helpers import (
@@ -21,11 +22,18 @@ from utils.helpers import (
 
 LOG_FORMAT = "%(asctime)s - %(levelname)s - %(message)s"
 DATE_FORMAT = "%m/%d/%Y %H:%M:%S %p"
+
+if not os.path.exists('./logs'):
+	os.mkdir('./logs')
+if not os.path.exists('./record'):
+	os.mkdir('./record')
+	
 logging.basicConfig(filename='./logs/client.log', level=logging.DEBUG, format=LOG_FORMAT, datefmt=DATE_FORMAT, filemode='w')
 	
 	
 START_CODE = '{st}'
 LEN_START_CODE = len(START_CODE)
+THROUGHPUT_ESTIMATE_INTERVAL = 0.1
 
 class Client(object):
 	def __init__(self, global_cfg, multiflow_cfg, receiver_id):
@@ -38,29 +46,29 @@ class Client(object):
 		self.send_buf_size = int(self.config.get("client", "send_buf_size"))
 		
 		self.receiver_id = receiver_id
-		self.multi_flow = True if int(self.config.get("TC", "Multiflow"))==1 else False
+		self.multi_flow = True if int(self.config.get("multiflow", "multiflow"))==1 else False
 		
 		self.receiver_id = receiver_id
-
-		self.cc = self.config.get("experiment", "CC")
-
-
+		self.env = self.config.get("experiment", "ENV")
 		
 		if(self.multi_flow):
 			self.multiflow_config = Config(multiflow_cfg)
 			self.ip = self.multiflow_config.get("client-"+str(self.receiver_id), "ip")
 			self.port = int(self.multiflow_config.get("client-"+str(self.receiver_id), "port"))
 			
-			if(receiver_id==0):
-				self.protocal = PROTOCOL_UDP
-				print("********** Monax primary flow")
-			else:
-				self.protocal = PROTOCOL_TCP
-				print("********** TCP flow")
+			self.cc = self.multiflow_config.get("client-"+str(self.receiver_id), "CC")
+			self.protocol = PROTOCOL_MAP[self.cc]
+			print(f"[Flow {self.receiver_id} ({self.protocol})]: client side starts!")
+
 		else:
-			self.ip = self.config.get("client", "local_ip")
+			if(self.env==ENV_LOCAL):
+				self.ip = self.config.get("client", "local_ip")
+			else:
+				self.ip = self.config.get("client", "local_ip")
 			self.port = int(self.config.get("client", "port"))
-			self.protocal = PROTOCOL_MAP[self.cc]
+			self.cc = self.config.get("experiment", "CC")
+			self.protocol = PROTOCOL_MAP[self.cc]
+
 
 		self.recv_buffer = Queue(self.recv_buf_size)
 		self.send_buffer= Queue(self.send_buf_size)
@@ -100,11 +108,12 @@ class Client(object):
 		self.send_ffplay_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
 		### recv socket
-		if(self.protocal==PROTOCOL_UDP):
+		if(self.protocol==PROTOCOL_UDP):
 			self.client_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 			self.client_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+			# self.client_sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
 			self.client_sock.bind((self.ip, self.port))
-		elif(self.protocal==PROTOCOL_TCP):
+		elif(self.protocol==PROTOCOL_TCP):
 			sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 			sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 			sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, True)
@@ -134,7 +143,7 @@ class Client(object):
 
 
 # 	def sendAgent(self):
-# 		if(self.protocal==PROTOCOL_UDP):
+# 		if(self.protocol==PROTOCOL_UDP):
 # 			while(True):
 # 				data = self.send_buffer.get()
 # 				self.client_sock.sendto(data, self.router['back'])
@@ -143,7 +152,7 @@ class Client(object):
 # #                 print('send ack back!!!')
 # #                 self.send_back_sock.sendto(data,(self.server_ip, self.server_port)
 
-# 		elif(self.protocal==PROTOCOL_TCP):
+# 		elif(self.protocol==PROTOCOL_TCP):
 # # 			while(self.send_buffer.qsize()==0):
 # # 				continue
 # # 			sock.connect((self.server_ip, self.server_port))
@@ -157,12 +166,12 @@ class Client(object):
 		logging.debug('start recieving data!')
 
 		recv_size = 0
-		if(self.protocal==PROTOCOL_UDP):
+		if(self.protocol==PROTOCOL_UDP):
 			data,address = self.client_sock.recvfrom(2000)
 			if('back' not in self.router):
 				self.router['back'] = address
 # 				print('send ack to address: ',address)
-		elif(self.protocal==PROTOCOL_TCP):
+		elif(self.protocol==PROTOCOL_TCP):
 			data,address = self.client_sock.recvfrom(2000)
 		
 		self.socket_read_buffer+=data
@@ -190,10 +199,10 @@ class Client(object):
 
 		while(self.running):
 			try:
-				if(self.protocal==PROTOCOL_UDP):
+				if(self.protocol==PROTOCOL_UDP):
 					data = self.client_sock.recv(5000)
 	# 				print(len(data))
-				elif(self.protocal==PROTOCOL_TCP):
+				elif(self.protocol==PROTOCOL_TCP):
 					data = self.client_sock.recv(5000)
 	# 				print(len(data))
 			except:
@@ -214,6 +223,8 @@ class Client(object):
 				else:
 					dataFrame = self.Unpack_DataFrame(packet)
 
+				# print(dataFrame)
+
 # 				print(f"*** pkt_id = {dataFrame['pkt_id']} with timestamp = {dataFrame['create_time']}")
 				
 # 				print("dataFrame = ", dataFrame)
@@ -222,6 +233,12 @@ class Client(object):
 				if(dataFrame['pkt_id']%self.ack_period==0 and dataFrame['pkt_id']!=0):
 					recv_count = 0
 					total = 0
+
+					# estimated_bw = (recv_size*8)/((time.time()-start_time)*(10**6))  #Mbps
+					# recv_size = 0
+					# start_time = time.time()
+					# print("Estimated throughput = {}".format(estimated_bw))
+
 					# pkt_log[self.current_window]+=1
 					windows = list(pkt_log.keys())
 # 						print(windows)
@@ -241,10 +258,10 @@ class Client(object):
 	# 				self.send_buffer.put(ack)
 # 					print('send ack!!!')
 
-					if(self.protocal==PROTOCOL_UDP):
+					if(self.protocol==PROTOCOL_UDP):
 						self.client_sock.sendto(ack, self.router['back'])
 	# 					print('send ack!!!')
-					elif(self.protocal==PROTOCOL_TCP):
+					elif(self.protocol==PROTOCOL_TCP):
 						self.client_sock.send(ack)
 
 # 					print(f"return ack with pkt id = {dataFrame['pkt_id']} and timestamp = {time.time()%1000}")
@@ -257,6 +274,7 @@ class Client(object):
 						record = self.construct_data(estimated_bw,self.one_way_delay)
 						self.Monitor.pushData(measurement = 'monax-client-'+str(self.receiver_id), datapoints = [record], tags = {'version': 0.1} )
 				else:
+					# recv_size+=len(packet)
 					if(dataFrame['frame_id']>=self.current_frame_id-1):
 						if(int(dataFrame['pkt_id']/self.ack_period) in pkt_log):
 	# 						print(f"#198 add window: {int(dataFrame['pkt_id']/self.ack_period)}")
@@ -270,11 +288,11 @@ class Client(object):
 						continue
 
 				current_time = time.time()
-				if(current_time-start_time>=1):
-					estimated_bw = (recv_size*8)/10**6  #Mbps
+				if(current_time-start_time>=THROUGHPUT_ESTIMATE_INTERVAL):
+					estimated_bw = (recv_size*8)/(THROUGHPUT_ESTIMATE_INTERVAL*(10**6))  #Mbps
 					recv_size = 0
 					start_time = time.time()
-					# logging.debug("Estimated throughput = {}".format(estimated_bw))
+					# print("Estimated throughput = {}".format(estimated_bw))
 	# 				if DEBUG:
 	# 					self.Log_send("Estimated throughput = {}".format(estimated_bw)) 
 				else:
@@ -403,6 +421,7 @@ if __name__ == '__main__':
 
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--id', type=int, default=1)
+	parser.add_argument('--mark', default="default")
 	parser.add_argument('--time_mark', default="default")
 	parser.add_argument('--epoch', type=int, default=0)
 	args = parser.parse_args()
