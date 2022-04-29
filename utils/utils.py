@@ -170,13 +170,15 @@ def predict(samples, weights):
 def gradient(self, matrix):
 	return matrix[-1]-matrix[-2]
 
-def check_accuracy(prediction, label):
+def check_accuracy(prediction, label, acc_len):
 	acc_count = 0
 	rec_count = min(len(prediction), len(label))
-	for i in range(rec_count):
+
+	start_index = rec_count-acc_len if rec_count>10 else 0
+	for i in range(start_index, rec_count):
 		if(prediction[i]==label[i]):
 			acc_count += 1
-	return acc_count/rec_count
+	return acc_count/acc_len
 
 
 '''def generate_samples(dimension, n_samples):

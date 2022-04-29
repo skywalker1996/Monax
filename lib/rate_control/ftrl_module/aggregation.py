@@ -1,5 +1,7 @@
 import random
 
+from configs.Common import STATE_RTT
+
 class Aggregation(object):
 	def __init__(self,current_monitor_para,history_prediction,history_decision,utility_record,RTT_threshold):
 		self.current_monitor_para=current_monitor_para
@@ -9,13 +11,13 @@ class Aggregation(object):
 		self.RTT_threshold=RTT_threshold
 
 	def Policy_aggregation(self, prob):
-
-	#         print("input prob = ", prob)
-		### PCC
+		"""
+		Policy Aggregation
+		"""
 		delta_utility = self.utility_record[-1] - self.utility_record[-2]
 		self.intervention_prob = self.compute_intervention_prob(self.history_prediction,self.history_decision)
 
-		if(self.current_monitor_para['network_delay'][-1] > self.RTT_threshold):
+		if(self.current_monitor_para[STATE_RTT][-1] > self.RTT_threshold):
 			aggregate_decision = 0
 			#print("force slowing down with prob = ", prob if self.history_prediction[-1]==aggregate_decision else 1-prob)
 			return aggregate_decision, prob if self.history_prediction[-1]==aggregate_decision else 1-prob

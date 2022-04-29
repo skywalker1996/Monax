@@ -40,6 +40,9 @@ DATE_FORMAT = "%m/%d/%Y %H:%M:%S %p"
 
 DATA_LOAD = ('1'*1280).encode()
 
+EXTIMATE_INTERVAL = 0.1
+RECORD_SAVE_INTERVAL = 0.05
+
 
 if not os.path.exists('./logs'):
 	os.mkdir('./logs')
@@ -72,6 +75,8 @@ class Server(object):
 		self.mark = mark
 		self.time_mark = time_mark
 		self.epoch = epoch
+
+		self.send_pkt_time = time.time()*1000
 
 		### sending parameters
 		self.cwnd = 100
@@ -123,12 +128,14 @@ class Server(object):
 		self.FPS = 30
 
 		### monitored sending throughput
-		self.sending_rate = 0.0
 
 		self.record_window = 30
-		self.network_delay_record = [0] * self.record_window    #单位ms
+		self.rtt_record = [0] * self.record_window    #单位ms
+		self.sending_rate_record = [0] * self.record_window
+		self.throughput_error_record = [0] * self.record_window
 		self.queue_delay_record = [0] * self.record_window
 		self.packet_loss_record = [0] * self.record_window
+		self.ack_timestamp_record = [0] * self.record_window
 		
 		trace_path = self.config.get("experiment", "TRACE")
 		trace_portion = float(self.config.get("experiment", "TRACE_PORTION"))
@@ -154,28 +161,35 @@ class Server(object):
 		self.sending_rate_ewma = None
 		self.delivery_rate_ewma = None
 
+		self.sending_rate = 0.0
 		self.min_rtt = None
 		self.current_rtt = 0.0
 
 		self.current_queue_delay = 0.0
 		self.current_loss = 0.0
 
+
+
 		self.record_count = 0   # for cold start
 
 		### Estimate Setting 
 		self.estimate_start_time = time.time()
 		self.last_send_time = time.time()
-		self.estimate_interval = 1
+		
 		self.send_count = 0
 
+		### bandwidth switch time mark
+		self.bandwidth_start_time = time.time()
+
 		self.record_start_time = time.time()
-		self.record_save_interval = 0.05
+		
 
 
 		if(self.cc == CC_PCC):
 			self.RC_Module = rate_control_module_PCC(self.sending_rate)
 		elif(self.cc == CC_MONAX):
 			self.RC_Module = rate_control_module_Monax(5, 0.2, 1, 0.2, 0.2,self.cwnd)
+			# self.RC_Module = rate_control_module_Monax(1,self.cwnd)
 		elif(self.cc == CC_RL):
 			self.RC_Module = rate_control_module_RL(self.sending_rate)
 		# elif(self.cc == CC_INDIGO):
@@ -200,7 +214,10 @@ class Server(object):
 			self.records["queue_delay"] = []
 			self.records["packet_loss"] = []
 			self.records["server_sending_rate"]	= []
+			self.records["sending_rate_ewma"] = []
 			self.records["delivery_rate"] = []
+			self.records["bandwidth"] = []
+
 			
 		# print('connecting database successfully!')
 		
@@ -236,6 +253,7 @@ class Server(object):
 		self.mainThread = Thread(target=self.run, args=())
 		self.mainThread.daemon = True
 
+
 		if(self.stream_type==STREAM_TYPE_VIDEO):
 			self.Encoder_thread = Process(target=self.Encoder, args=(self.send_buffer,self.video_path))
 			self.Encoder_thread.daemon = True 
@@ -253,9 +271,11 @@ class Server(object):
 # 		print("recv ack")
 		data = sock.recv(2000)
 		data = self.Unpack_ackFrame(data)
-
+		self.ack_timestamp = int((time.time()%(10**6))*1000)
 		### update state
 		self.current_rtt = (int((time.time()%(10**6))*1000) - data['create_time'])/1.0 #ms
+		# print(data)
+		# print(f"current time stamp = {(time.time()%(10**6))*1000} while data['create_time'] = {data['create_time']}")
 		
 # 		print(f"current time = {int((time.time()%(10**6))*1000)} while recv create_time = {data['create_time']}", )
 
@@ -283,31 +303,42 @@ class Server(object):
 		pkt_id = data['pkt_id']	
 		self.next_ack = max(self.next_ack, pkt_id+1)
 # 		print(f"expect the next akc pkt_id = {self.next_ack} and timestamp = {time.time()%1000}")
-
+		self.throughput_error = self.sending_rate - data['recv_throughput']
 		self.current_loss = data['loss']
 
-		self.network_delay_record = self.network_delay_record[1:]+[self.rtt_ewma]
+		self.rtt_record = self.rtt_record[1:]+[self.current_rtt]
 		self.packet_loss_record = self.packet_loss_record[1:]+[self.current_loss]
+		self.sending_rate_record = self.sending_rate_record[1:] + [self.sending_rate]
+		self.throughput_error_record = self.throughput_error_record[1:] + [self.throughput_error]
+		self.ack_timestamp_record = self.ack_timestamp_record[1:] + [self.ack_timestamp]
+		self.queue_delay_record = self.queue_delay_record[1:] + [self.current_queue_delay]
+
 		self.record_count += 1
 		utility = 0.0
-		self.throughput_error = self.sending_rate - data['recv_throughput']
-
 		log_info = {}
 		if(self.using_rate_control):
 			if(self.protocol==PROTOCOL_UDP):
 				### cold start
 				if(self.record_count>11):
-					state = {'network_delay': self.network_delay_record[-10:],
-							  'packet_loss': self.packet_loss_record[-10:],
-							  'sending_rate': self.sending_rate, 
-							  'throughput_error': self.throughput_error, 
-							  'queue_length': self.send_buffer.qsize(),
-							  'cwnd': self.cwnd}
+					state = { STATE_RTT: self.rtt_record[-10:],
+							  STATE_QUEUE_DELAY: self.queue_delay_record[-10:],
+							  STATE_LOSS: self.packet_loss_record[-10:],
+							  STATE_SENDING_RATE: self.sending_rate_record[-10:], 
+							  STATE_THROUGHPUT_ERROR: self.throughput_error_record[-10:], 
+							  STATE_QUEUE_LENGTH: self.send_buffer.qsize(),
+							  STATE_ACK_TIMESTAMP: self.ack_timestamp_record[-10:],
+							  STATE_CWND: self.cwnd}
 					if(self.cc==CC_PCC):
 						self.sending_rate, utility = self.RC_Module.action(state)
 
 					elif(self.cc==CC_MONAX):
+						s = time.time()
 						self.cwnd, utility, log_info=self.RC_Module.action(state)
+						
+						# print(f"cwnd = {self.cwnd} and rtt = {state[STATE_RTT][-3:]}")
+						# print(f"queue delay = {state[STATE_QUEUE_DELAY][-3:]}")
+						# print(state[STATE_SENDING_RATE])
+						
 						utility = 1.0
 					elif(self.cc==CC_INDIGO):
 						state = [self.rtt_ewma,
@@ -321,18 +352,20 @@ class Server(object):
 	# 					print('sending buffer size: ', self.send_buffer.qsize())
 
 		current_time = time.time()
-		if(current_time - self.record_start_time >= self.record_save_interval):
+		if(current_time - self.record_start_time >= RECORD_SAVE_INTERVAL):
 			if(self.record_type == RECORD_TYPE_DATABASE):
 # 				print(f"upload data: RTT :{self.rtt_ewma}  loss: {self.current_loss}")
 				record = self.construct_data(self.current_rtt, self.current_queue_delay, self.current_loss, self.sending_rate, data['recv_throughput'], utility, self.cwnd, self.bw_limit, log_info)
 				self.Monitor.pushData(measurement = 'monax-server-'+str(self.sender_id), datapoints = [record], tags = {'version': 0.1} )
 			elif(self.record_type == RECORD_TYPE_CSV):
-				self.records["time"].append(int(time.time()))
+				self.records["time"].append(round(time.time(),3))
 				self.records["rtt"].append(self.current_rtt)
 				self.records["queue_delay"].append(self.current_queue_delay)
 				self.records["packet_loss"].append(self.current_loss)
 				self.records["server_sending_rate"].append(self.sending_rate)
+				self.records["sending_rate_ewma"].append(self.sending_rate_ewma)
 				self.records["delivery_rate"].append(data['recv_throughput'])
+				self.records["bandwidth"].append(self.bw_limit)
 
 			self.record_start_time = time.time()
 
@@ -358,25 +391,29 @@ class Server(object):
 			else:
 				data = self.getNextData()	
 				sock.send(data)
-# 		else:
-# 			print("window full")
+		# else:
+		# 	print("window full")
 
 			# print('send data index', send_index)
 		self.current_send_time = time.time()
 		current_time = time.time()
-		if(current_time - self.estimate_start_time >= self.estimate_interval):
-			self.sending_rate = (self.send_count*8)/(self.estimate_interval*(10**6))
+		if(current_time - self.estimate_start_time >= EXTIMATE_INTERVAL):
+			self.sending_rate = (self.send_count*8)/(EXTIMATE_INTERVAL*(10**6))
 			self.estimate_start_time = time.time()
 			self.send_count = 0
 # 				if(DEBUG):
 # 					self.Log_send('server send throughput = {}'.format(self.sending_rate))
-			print('******server send throughput = {}'.format(self.sending_rate))
+			# print('******server send throughput = {}'.format(self.sending_rate))
 			# if(self.primary_flow):
 # 			print('******server send throughput = {}'.format(self.sending_rate))
-			self.bw_limit = self.getNextBandwidth()
+			
 		else:
 			if(data is not None):
 				self.send_count+=len(data)
+
+		if(current_time - self.bandwidth_start_time >= 1):
+			self.bandwidth_start_time = time.time()
+			self.bw_limit = self.getNextBandwidth()
 
 		self.last_send_time = self.current_send_time
 
@@ -411,13 +448,13 @@ class Server(object):
 		record_file = f"server_{self.sender_id}_{self.cc}_epoch_{self.epoch}.csv"
 		dataframe = pd.DataFrame.from_dict(self.records)
 		dataframe.to_csv(os.path.join(save_dir, record_file))
+		dataframe.to_csv(os.path.join(f"./record/{self.env}/latest", record_file))
 		print("************* save records in file: ", os.path.join(save_dir, record_file))
 		time.sleep(10)
 
 
 	def Encoder(self, send_buffer, video_path):
 		H264_stream=H264_Stream(video_path=video_path)
-		
 		while(True):
 			res = H264_stream.getNextPacket()
 			if(res is None):

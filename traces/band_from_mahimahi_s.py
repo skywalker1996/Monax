@@ -53,7 +53,7 @@ def gen_static_trace(bandwidth):
 
 def main():
 	
-	TRACE_BASE = './Belgium_4GLTE'
+	TRACE_BASE = './mahimahi/trace/subset'
 	OUTPUT_PATH = './bandwidth'
 	
 	p = Popen(f"ls {TRACE_BASE}",stdout=subprocess.PIPE, shell=True)
@@ -73,9 +73,7 @@ def main():
 		
 		with open(output_file, "w+") as f:
 				f.write(content)
-		break
 		
-
 main()
 
 

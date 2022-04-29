@@ -5,6 +5,7 @@ import os
 import time
 import pickle
 import numpy as np
+from configs.Common import *
 import sklearn.datasets as dt
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import train_test_split
@@ -76,7 +77,7 @@ class rate_control_module_Monax:
 		self.intervention_prob = 0.0
 		self.accuracy=1
 
-		self.ensemble=True
+		self.ensemble=False
 		self.bagging=False
 		self.RTT_prediction=False
 
@@ -88,15 +89,15 @@ class rate_control_module_Monax:
 			self.model_history_prediction=[[] for _ in range(self.model_num)]
 			#self.model_history_label=[[0] * 100 for _ in range(self.model_num)]
 
-		if (self.RTT_prediction==True):
-			device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-			self.model=LSTMTestNet(name='TSP_1',seq_len=10,forecast_len=2,input_size=1, hidden_size=16, num_layers=1).to(device)
-			path='/home/hanying/monax/model/weights/weights.pth'
-			pretrained_dict=torch.load(path)['state_dict']
-			try:
-				self.model.load_state_dict(pretrained_dict)
-			except IOError:
-				raise IOError("netG weights not found")
+		# if (self.RTT_prediction==True):
+		# 	device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+		# 	self.model=LSTMTestNet(name='TSP_1',seq_len=10,forecast_len=2,input_size=1, hidden_size=16, num_layers=1).to(device)
+		# 	path='/home/hanying/monax/model/weights/weights.pth'
+		# 	pretrained_dict=torch.load(path)['state_dict']
+		# 	try:
+		# 		self.model.load_state_dict(pretrained_dict)
+		# 	except IOError:
+		# 		raise IOError("netG weights not found")
 
 
 	def action(self, monitor_para):
@@ -108,14 +109,14 @@ class rate_control_module_Monax:
 		"""
 		self.current_monitor_para = monitor_para
 
-		self.sending_rate = monitor_para['sending_rate'] 
-		self.network_delay_gradient = monitor_para["network_delay"][-1] - monitor_para["network_delay"][-2]
-		self.current_loss = monitor_para['packet_loss'][-1]
-		self.max_network_delay = max(monitor_para['network_delay'][-3:])
-		self.throughput_error = monitor_para['throughput_error']
-		self.cwnd = monitor_para['cwnd']
+		self.sending_rate = monitor_para[STATE_SENDING_RATE][-1] 
+		self.network_delay_gradient = monitor_para[STATE_RTT][-1] - monitor_para[STATE_RTT][-2]
+		self.current_loss = monitor_para[STATE_LOSS][-1]
+		self.max_network_delay = max(monitor_para[STATE_RTT][-3:])
+		self.throughput_error = monitor_para[STATE_THROUGHPUT_ERROR][-1]
+		self.cwnd = monitor_para[STATE_CWND]
 
-		sample=[self.sending_rate,self.network_delay_gradient,monitor_para['network_delay'][-1],self.current_loss, self.throughput_error]
+		sample=[self.sending_rate,self.network_delay_gradient,monitor_para[STATE_RTT][-1],self.current_loss, self.throughput_error]
 
 		current_utility = utility_function(sample,self.RTT_threshold,self.RTT_prediction)
 		if(self.cold_start):
@@ -207,9 +208,9 @@ class rate_control_module_Monax:
 
 		if(self.ensemble==True):
 			#self.model_history_prediction[self.current_model]=self.model_history_prediction[self.current_model][1:]+[prediction]
-			if (self.current_monitor_para['network_delay'][-4]>self.current_monitor_para['network_delay'][-3]\
-			 and self.current_monitor_para['network_delay'][-3]>self.current_monitor_para['network_delay'][-2]\
-			 and self.current_monitor_para['network_delay'][-2]>self.current_monitor_para['network_delay'][-1]):
+			if (self.current_monitor_para[STATE_RTT][-4]>self.current_monitor_para[STATE_RTT][-3]\
+			 and self.current_monitor_para[STATE_RTT][-3]>self.current_monitor_para[STATE_RTT][-2]\
+			 and self.current_monitor_para[STATE_RTT][-2]>self.current_monitor_para[STATE_RTT][-1]):
 				if(self.used_model<self.model_num-1):			
 					self.modelAccuracy.append(check_accuracy(self.model_history_prediction[self.current_model],self.history_label))
 					self.used_model+=1
@@ -249,7 +250,7 @@ class rate_control_module_Monax:
 
 
 	def ratecontrol(self, res):
-		network_delay_record = self.current_monitor_para['network_delay']
+		network_delay_record = self.current_monitor_para[STATE_RTT]
 		current_network_delay = network_delay_record[-1]
 #         print(f"**********current RTT = {current_network_delay}")
 		if(res<0.5):

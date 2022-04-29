@@ -39,6 +39,20 @@ PROTOCOL_MAP = {
 	CC_RENO: PROTOCOL_TCP,
 	CC_LEDBAT: PROTOCOL_TCP
 }
-
+	
 START_CODE = '{st}'
 LEN_START_CODE = len(START_CODE)
+
+
+STATE_RTT = "rtt"
+STATE_LOSS = "loss"
+STATE_SENDING_RATE = "sending_rate"
+STATE_THROUGHPUT_ERROR = "throughput_error"
+STATE_QUEUE_LENGTH = "queue_length"
+STATE_CWND = "cwnd"
+STATE_RTT_GRADIENT = "rtt_gradient"
+STATE_MAX_RTT = "max_rtt"
+STATE_QUEUE_DELAY = "queue_delay"
+STATE_E2E_DELAY = "e2e_delay"
+
+STATE_ACK_TIMESTAMP = "ack_timestamp"

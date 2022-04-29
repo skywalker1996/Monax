@@ -1,0 +1,17 @@
+CUBIC
+{'RTT_average': 104.79270633397313, 'RTT_exceed_ratio': 0.800383877159309, 'Loss_average': 0.0, 'send_rate_average': 17.96284744721689, 'delivery_rate_average': 17.786142034548945, 'queue_delay_average': 0.0, 'end2end_average': 104.79270633397313}
+
+BBR
+{'RTT_average': 148.5330739299611, 'RTT_exceed_ratio': 0.9980544747081712, 'Loss_average': 0.0, 'send_rate_average': 17.5502213229572, 'delivery_rate_average': 17.268151750972766, 'queue_delay_average': 0.0, 'end2end_average': 148.5330739299611}
+
+Vivace
+{'RTT_average': 134.1175337186898, 'RTT_exceed_ratio': 0.9691714836223507, 'Loss_average': 0.0, 'send_rate_average': 16.815546820809246, 'delivery_rate_average': 16.642389210019267, 'queue_delay_average': 0.0, 'end2end_average': 134.1175337186898}
+
+Vegas
+{'RTT_average': 165.725, 'RTT_exceed_ratio': 0.9980769230769231, 'Loss_average': 0.0, 'send_rate_average': 17.168876307692308, 'delivery_rate_average': 16.938999999999997, 'queue_delay_average': 0.0, 'end2end_average': 165.725}
+
+Monax
+{'RTT_average': 67.13849287169043, 'RTT_exceed_ratio': 0.35234215885947046, 'Loss_average': 0.0, 'send_rate_average': 16.840979877800407, 'delivery_rate_average': 16.898004073319754, 'queue_delay_average': 0.0, 'end2end_average': 67.13849287169043}
+
+
+
