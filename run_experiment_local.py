@@ -244,7 +244,7 @@ if __name__ == '__main__':
 
     dataframe = pd.DataFrame({'RTT_average':[r['RTT_average'] for r in results], 
                             'queue_delay_average':[r['queue_delay_average'] for r in results], 
-                            'end2end_average':[r['end2end_average'] for r in results], 
+                            'end2dend_average':[r['end2end_average'] for r in results], 
                             'Loss_average':[r['Loss_average'] for r in results],
                             'send_rate_average':[r['send_rate_average'] for r in results], 
                             'delivery_rate_average':[r['delivery_rate_average'] for r in results]})

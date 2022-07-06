@@ -36,4 +36,4 @@ def trace_gen(input_file, output_file, interval):
     print('生成成功！')
             
 
-trace_gen('trace1.txt', 'mahimahi.up', 0.034)
+trace_gen('5G_01.txt', '5G_download_static_01.log', 1)
